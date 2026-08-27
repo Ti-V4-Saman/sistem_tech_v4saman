@@ -7,12 +7,31 @@ export default function LoginScreen({ onLogin, theme, onToggleTheme }) {
   const [error, setError] = useState("");
 
   const googleButtonRef = useRef(null);
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  const googleAllowedDomain = import.meta.env.VITE_GOOGLE_ALLOWED_DOMAIN || "v4company.com";
+  const [activeClientId, setActiveClientId] = useState(() => {
+    const envId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    return (envId && !envId.includes("seu-client-id")) ? envId : "";
+  });
+  const [activeDomain, setActiveDomain] = useState(import.meta.env.VITE_GOOGLE_ALLOWED_DOMAIN || "v4company.com");
+
+  // Busca configuração de autenticação no backend se necessário
+  useEffect(() => {
+    if (!activeClientId) {
+      api.getAuthConfig()
+        .then((config) => {
+          if (config?.googleClientId) {
+            setActiveClientId(config.googleClientId);
+          }
+          if (config?.googleAllowedDomain) {
+            setActiveDomain(config.googleAllowedDomain);
+          }
+        })
+        .catch((err) => console.error("Erro ao carregar auth config:", err));
+    }
+  }, [activeClientId]);
 
   // Carrega o SDK do Google Identity Services
   useEffect(() => {
-    if (!googleClientId) return;
+    if (!activeClientId) return;
     const existing = document.querySelector('script[data-google-identity="true"]');
     const loadScript = () => new Promise((resolve, reject) => {
       if (window.google?.accounts?.id) return resolve();
@@ -33,15 +52,15 @@ export default function LoginScreen({ onLogin, theme, onToggleTheme }) {
     loadScript()
       .then(() => setGoogleReady(true))
       .catch(() => setError("Não foi possível carregar o login do Google. Verifique sua conexão."));
-  }, [googleClientId]);
+  }, [activeClientId]);
 
   // Renderiza o botão do Google
   useEffect(() => {
-    if (!googleReady || !googleButtonRef.current || !window.google?.accounts?.id) return;
+    if (!googleReady || !googleButtonRef.current || !window.google?.accounts?.id || !activeClientId) return;
     googleButtonRef.current.innerHTML = "";
     window.google.accounts.id.initialize({
-      client_id: googleClientId,
-      hosted_domain: googleAllowedDomain,
+      client_id: activeClientId,
+      hosted_domain: activeDomain,
       callback: async ({ credential }) => {
         setLoading(true);
         setError("");

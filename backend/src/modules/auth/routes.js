@@ -21,6 +21,13 @@ import {
 
 export const authRoutes = Router();
 
+authRoutes.get('/config', (req, res) => {
+  res.json({
+    googleClientId: env.google.clientId || '',
+    googleAllowedDomain: env.google.allowedDomain || 'v4company.com',
+  });
+});
+
 const googleClient = env.google.clientId ? new OAuth2Client(env.google.clientId) : null;
 
 async function buildSession(userId) {

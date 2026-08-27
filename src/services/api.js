@@ -289,6 +289,10 @@ function mapUser(row = {}) {
 export const api = {
   getStoredSession,
 
+  getAuthConfig: async () => {
+    return await request("/auth/config");
+  },
+
   loginWithGoogle: async (credential) => {
     const session = await request("/auth/google", {
       method: "POST",
