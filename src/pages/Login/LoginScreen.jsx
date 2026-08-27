@@ -81,7 +81,7 @@ export default function LoginScreen({ onLogin, theme, onToggleTheme }) {
       shape: "rectangular",
       width: 280,
     });
-  }, [googleReady, googleClientId, googleAllowedDomain, onLogin, theme]);
+  }, [googleReady, activeClientId, activeDomain, onLogin, theme]);
 
   return (
     <div className="login-page" style={{ background: theme === "dark" ? "var(--bg-page)" : "#fbfbfb" }}>
@@ -152,9 +152,9 @@ export default function LoginScreen({ onLogin, theme, onToggleTheme }) {
           <div ref={googleButtonRef} style={{ display: "flex", justifyContent: "center", minHeight: "44px" }} />
         )}
 
-        {!googleClientId && (
+        {!activeClientId && (
           <div className="login-warning" style={{ marginTop: 16 }}>
-            Configure <code>VITE_GOOGLE_CLIENT_ID</code> no seu .env para ativar o login.
+            Configure <code>GOOGLE_CLIENT_ID</code> no seu .env para ativar o login.
           </div>
         )}
 
