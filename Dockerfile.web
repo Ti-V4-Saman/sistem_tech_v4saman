@@ -9,7 +9,7 @@ WORKDIR /app
 
 # Copia dependências e instala todas (incluindo devDependencies para a build)
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copia código fonte do frontend
 COPY index.html vite.config.js ./

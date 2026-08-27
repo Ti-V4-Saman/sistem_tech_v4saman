@@ -8,8 +8,8 @@ WORKDIR /app
 # Copia manifestos de dependências
 COPY package.json package-lock.json ./
 
-# Instala dependências de produção
-RUN npm ci --omit=dev
+# Instala dependências de produção com legacy-peer-deps para resolver conflitos de devDependencies
+RUN npm ci --omit=dev --legacy-peer-deps
 
 # Copia código do backend, scripts e migrações
 COPY backend ./backend
