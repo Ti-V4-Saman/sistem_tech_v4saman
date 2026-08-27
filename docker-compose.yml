@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # ============================================================
+  # 1. Banco de Dados MySQL 8.0
+  # ============================================================
+  db:
+    image: mysql:8.0
+    container_name: techops_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-techhub}
+      MYSQL_USER: ${DB_USER:-techuser}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - techops_network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # 2. Backend API (Node.js + Express)
+  # ============================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: techops_api
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      APP_PORT: 3000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-techuser}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-techhub}
+      CORS_ORIGIN: https://techops.v4saman.com
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      REFRESH_TOKEN_EXPIRES_IN: ${REFRESH_TOKEN_EXPIRES_IN:-30d}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_ALLOWED_DOMAIN: ${GOOGLE_ALLOWED_DOMAIN}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-"Admin TechOps"}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@v4saman.com}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
+      SEED_ADMIN_JOB_ROLE: ${SEED_ADMIN_JOB_ROLE:-gerente}
+      SEED_ADMIN_TEAM: ${SEED_ADMIN_TEAM:-snipers}
+    networks:
+      - techops_network
+
+  # ============================================================
+  # 3. Servidor Web & Proxy Reverso (Nginx + Frontend React)
+  # ============================================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        VITE_API_URL: /api
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+        VITE_GOOGLE_ALLOWED_DOMAIN: ${VITE_GOOGLE_ALLOWED_DOMAIN}
+    container_name: techops_web
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      - api
+    networks:
+      - techops_network
+
+volumes:
+  mysql_data:
+
+networks:
+  techops_network:
+    driver: bridge

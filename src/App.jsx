@@ -25,7 +25,7 @@ const NAV = [
   { id: "clients", label: "Clientes", icon: <Icons.Users /> },
   { id: "docs", label: "Documentos", icon: <Icons.Doc /> },
   { id: "telephony", label: "Telefonia", icon: <Icons.Phone />, isAdminOnly: true },
-  { id: "flows", label: "Modelos de Fluxos", icon: <Icons.Zap />, isAdminOnly: true },
+  { id: "flows", label: "Modelos de Fluxos", icon: <Icons.Zap />, isAdminOnly: true, isDev: true },
   { id: "alerts", label: "Alertas", icon: <Icons.Bell />, isAdminOnly: true },
   { id: "users", label: "Usuários", icon: <Icons.Lock />, isAdminOnly: true },
 ];
@@ -188,26 +188,36 @@ export default function App() {
               return (
                 <button
                   key={item.id}
-                  className={`nav-item ${page === item.id ? 'nav-item--active' : ''} ${item.isAdminOnly ? 'nav-item--admin' : ''}`}
+                  className={`nav-item ${page === item.id ? 'nav-item--active' : ''}`}
                   onClick={() => navigateTo(item.id)}
                 >
                   <span className="nav-item__icon">{typeof item.icon === 'function' ? item.icon() : item.icon}</span>
                   <span className="nav-item__label">{item.label}</span>
+                  <div className="nav-item__side">
+                    {item.isDev && <span className="nav-item__dev-icon" title="Em desenvolvimento">⚠</span>}
+                    {item.isAdminOnly && <span className="nav-item__lock-icon" title="Acesso restrito para Administrador"><Icons.Lock /></span>}
+                  </div>
                 </button>
               );
             })}
           </nav>
           <div className="sidebar__footer" style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "8px" }}>
             {isSuperAdmin && (
-              <button className={`nav-item ${page === 'settings' ? 'nav-item--active' : ''} nav-item--admin`} onClick={() => navigateTo('settings')} style={{ width: '100%', textAlign: 'left', margin: 0 }}>
+              <button className={`nav-item ${page === 'settings' ? 'nav-item--active' : ''}`} onClick={() => navigateTo('settings')} style={{ width: '100%', textAlign: 'left', margin: 0 }}>
                 <span className="nav-item__icon"><Icons.Settings /></span>
                 <span className="nav-item__label">Administrativa</span>
+                <div className="nav-item__side">
+                  <span className="nav-item__lock-icon" title="Acesso restrito para Administrador"><Icons.Lock /></span>
+                </div>
               </button>
             )}
             {isAdmin && (
-              <button className={`nav-item ${page === 'help' ? 'nav-item--active' : ''} nav-item--admin`} onClick={() => navigateTo('help')} style={{ width: '100%', textAlign: 'left', margin: 0 }}>
+              <button className={`nav-item ${page === 'help' ? 'nav-item--active' : ''}`} onClick={() => navigateTo('help')} style={{ width: '100%', textAlign: 'left', margin: 0 }}>
                 <span className="nav-item__icon"><Icons.HelpCircle /></span>
                 <span className="nav-item__label">Precisa de ajuda?</span>
+                <div className="nav-item__side">
+                  <span className="nav-item__dev-icon" title="Em desenvolvimento">⚠</span>
+                </div>
               </button>
             )}
             <button className={`nav-item ${page === 'profile' ? 'nav-item--active' : ''}`} onClick={() => navigateTo('profile')} style={{ width: '100%', textAlign: 'left', margin: 0 }}>

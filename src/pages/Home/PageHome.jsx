@@ -49,7 +49,7 @@ export default function PageHome({ session, setPage }) {
                 className="btn btn--outline"
                 onClick={() => setPage("help")}
               >
-                <Icons.HelpCircle /> Precisa de ajuda?
+                <Icons.HelpCircle /> Precisa de ajuda? <span style={{ opacity: 0.8, fontSize: "14px", marginLeft: "4px" }} title="Em desenvolvimento">⚠</span>
               </button>
             </div>
             
@@ -58,7 +58,7 @@ export default function PageHome({ session, setPage }) {
                 className="btn btn--outline home-btn-admin"
                 onClick={() => setPage("settings")}
               >
-                <Icons.Settings /> Área Administrativa
+                <Icons.Settings /> Área Administrativa <span style={{ display: "inline-flex", alignItems: "center", marginLeft: "4px", opacity: 0.8 }} title="Acesso restrito para Administrador"><Icons.Lock /></span>
               </button>
             )}
           </div>

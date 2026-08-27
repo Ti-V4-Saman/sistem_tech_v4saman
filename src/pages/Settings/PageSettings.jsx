@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "../../services/api";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { Icons } from "../../icons/Icons";
