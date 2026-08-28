@@ -159,7 +159,7 @@ export default function LoginScreen({ onLogin, theme, onToggleTheme }) {
         )}
 
         <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24 }}>
-          Somente contas do domínio <strong>@{googleAllowedDomain}</strong> são aceitas.
+          Somente contas do domínio <strong>@{activeDomain}</strong> são aceitas.
         </p>
       </div>
     </div>
