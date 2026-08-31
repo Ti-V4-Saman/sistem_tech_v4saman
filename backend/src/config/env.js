@@ -35,6 +35,7 @@ export const env = {
   },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     allowedDomain: process.env.GOOGLE_ALLOWED_DOMAIN || 'v4company.com',
   },
   encryptionKey: process.env.ENCRYPTION_KEY || 'dev-only-change-me-32-bytes-minimum',
