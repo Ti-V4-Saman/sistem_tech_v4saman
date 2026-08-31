@@ -176,9 +176,10 @@ function buildMetricCards(metrics = {}, alerts = [], setPage, onToggleRisk, isAd
     },
   ];
 
-  // Para não-admins, inclui cards adminOnly mas sem filtrar por raw (exibe card com valor oculto)
+  // Para não-admins, não exibimos mais os cards adminOnly (antes exibia com cadeado)
   return candidates.filter((card) => {
-    if (card.adminOnly) return true; // sempre mostrar cards admin-only (com valor oculto se não for admin)
+    if (card.adminOnly && !isAdmin) return false;
+    if (card.adminOnly) return true;
     return hasData(card.raw);
   });
 }

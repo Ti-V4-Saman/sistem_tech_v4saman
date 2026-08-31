@@ -98,8 +98,14 @@ export function CommandPalette({ open, onClose, onNavigate, isAdmin }) {
       return;
     }
 
-    if (command.clientId) localStorage.setItem("techhub.openClientId", String(command.clientId));
-    if (command.clientName) localStorage.setItem("techhub.clientSearch", String(command.clientName));
+    if (command.clientId) {
+      localStorage.setItem("techhub.openClientId", String(command.clientId));
+      window.dispatchEvent(new CustomEvent("techhub.clientSelected", { detail: command.clientId }));
+    }
+    if (command.clientName) {
+      localStorage.setItem("techhub.clientSearch", String(command.clientName));
+      window.dispatchEvent(new CustomEvent("techhub.clientSearch", { detail: command.clientName }));
+    }
     onNavigate(command.page);
     onClose();
   };

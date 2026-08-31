@@ -160,7 +160,7 @@ export default function App() {
       case "users": return isSuperAdmin ? <PageUsers /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>;
       case "profile": return <PageProfile session={session} onSessionUpdate={setSession} />;
       case "settings": return isSuperAdmin ? <PageSettings session={session} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>;
-      case "help": return <PageHelp setPage={navigateTo} session={session} />;
+
       default: return <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Módulo "{page}" está em desenvolvimento.</div>;
     }
   };
@@ -194,7 +194,7 @@ export default function App() {
                   <span className="nav-item__icon">{typeof item.icon === 'function' ? item.icon() : item.icon}</span>
                   <span className="nav-item__label">{item.label}</span>
                   <div className="nav-item__side">
-                    {item.isDev && <span className="nav-item__dev-icon" title="Em desenvolvimento">⚠</span>}
+                    {item.isDev && <span className="nav-item__dev-icon" title="Em desenvolvimento"><Icons.AlertTriangle /></span>}
                     {item.isAdminOnly && <span className="nav-item__lock-icon" title="Acesso restrito para Administrador"><Icons.Lock /></span>}
                   </div>
                 </button>
@@ -211,15 +211,7 @@ export default function App() {
                 </div>
               </button>
             )}
-            {isAdmin && (
-              <button className={`nav-item ${page === 'help' ? 'nav-item--active' : ''}`} onClick={() => navigateTo('help')} style={{ width: '100%', textAlign: 'left', margin: 0 }}>
-                <span className="nav-item__icon"><Icons.HelpCircle /></span>
-                <span className="nav-item__label">Precisa de ajuda?</span>
-                <div className="nav-item__side">
-                  <span className="nav-item__dev-icon" title="Em desenvolvimento">⚠</span>
-                </div>
-              </button>
-            )}
+
             <button className={`nav-item ${page === 'profile' ? 'nav-item--active' : ''}`} onClick={() => navigateTo('profile')} style={{ width: '100%', textAlign: 'left', margin: 0 }}>
               <span className="nav-item__icon"><Icons.Users /></span>
               <span className="nav-item__label">Sua Conta</span>

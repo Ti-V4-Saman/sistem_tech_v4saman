@@ -20,7 +20,7 @@ function formatDuration(ms) {
 }
 
 function getAutomationUrl(automation, execution) {
-  const workflowId = automation.externalId || automation.external_id || automation.id;
+  const workflowId = automation.externalId || automation.external_id;
   const executionId = execution?.id;
   if (!workflowId || !executionId) return null;
   return `https://n8ops.v4saman.com/workflow/${workflowId}/executions/${executionId}`;
@@ -189,7 +189,10 @@ export default function PageClients({ session }) {
   const [tempStatus, setTempStatus] = useState("all");
   const [integrationFilter, setIntegrationFilter] = useState("all");
   const [tempIntegration, setTempIntegration] = useState("all");
+  const [squadFilter, setSquadFilter] = useState("all");
+  const [tempSquad, setTempSquad] = useState("all");
   const [sortBy, setSortBy] = useState("name");
+  const [sortOrder, setSortOrder] = useState("asc"); // asc or desc
   const [tempSortBy, setTempSortBy] = useState("name");
   const [showFilters, setShowFilters] = useState(false);
   const [automationQuery, setAutomationQuery] = useState("");
@@ -245,11 +248,21 @@ export default function PageClients({ session }) {
   useEffect(() => refreshClients(), [refreshClients]);
 
   useEffect(() => {
+    const handleSearch = (e) => {
+      if (e.detail) {
+        setQ(e.detail);
+        setTempSearch(e.detail);
+      }
+    };
+    window.addEventListener("techhub.clientSearch", handleSearch);
+
     const storedSearch = localStorage.getItem("techhub.clientSearch");
     if (storedSearch) {
       setQ(storedSearch);
       localStorage.removeItem("techhub.clientSearch");
     }
+    
+    return () => window.removeEventListener("techhub.clientSearch", handleSearch);
   }, []);
 
   useEffect(() => {
@@ -278,16 +291,26 @@ export default function PageClients({ session }) {
         || (integrationFilter === "with-typebot" && bots > 0)
         || (integrationFilter === "without-typebot" && bots === 0);
 
-      return matchesQuery && matchesStatus && matchesIntegration;
+      const matchesSquad = squadFilter === "all" || client.squad === squadFilter;
+
+      return matchesQuery && matchesStatus && matchesIntegration && matchesSquad;
     });
 
     return [...list].sort((a, b) => {
-      if (sortBy === "automations") return Number(b.totalWorkflows || 0) - Number(a.totalWorkflows || 0);
-      if (sortBy === "bots") return Number(b.totalTypebots || 0) - Number(a.totalTypebots || 0);
-      if (sortBy === "status") return String(a.status || "").localeCompare(String(b.status || ""));
-      return String(a.name || "").localeCompare(String(b.name || ""));
+      let result = 0;
+      if (sortBy === "automations") result = Number(b.totalWorkflows || 0) - Number(a.totalWorkflows || 0);
+      else if (sortBy === "bots") result = Number(b.totalTypebots || 0) - Number(a.totalTypebots || 0);
+      else if (sortBy === "status") result = String(a.status || "").localeCompare(String(b.status || ""));
+      else if (sortBy === "updatedAt") {
+        const da = new Date(a.updatedAt || a.updated_at || 0);
+        const db = new Date(b.updatedAt || b.updated_at || 0);
+        result = db.getTime() - da.getTime(); // default is newest first
+      }
+      else result = String(a.name || "").localeCompare(String(b.name || ""));
+
+      return sortOrder === "desc" ? -result : result;
     });
-  }, [q, clients, statusFilter, integrationFilter, sortBy]);
+  }, [q, clients, statusFilter, integrationFilter, squadFilter, sortBy, sortOrder]);
 
   // Cards always reflect the FILTERED list so they update in real-time with filters
   const summary = useMemo(() => {
@@ -386,7 +409,10 @@ export default function PageClients({ session }) {
           setTempStatus("all");
           setIntegrationFilter("all");
           setTempIntegration("all");
+          setSquadFilter("all");
+          setTempSquad("all");
           setSortBy("name");
+          setSortOrder("asc");
           setTempSortBy("name");
           setShowFilters(false);
         }
@@ -397,10 +423,18 @@ export default function PageClients({ session }) {
   }, [handleCloseClient]);
 
   useEffect(() => {
+    const handleSelected = (e) => {
+      if (e.detail) handleOpenClient(e.detail);
+    };
+    window.addEventListener("techhub.clientSelected", handleSelected);
+
     const clientIdToOpen = localStorage.getItem("techhub.openClientId");
-    if (!clientIdToOpen) return;
-    localStorage.removeItem("techhub.openClientId");
-    handleOpenClient(clientIdToOpen);
+    if (clientIdToOpen) {
+      localStorage.removeItem("techhub.openClientId");
+      handleOpenClient(clientIdToOpen);
+    }
+    
+    return () => window.removeEventListener("techhub.clientSelected", handleSelected);
   }, [handleOpenClient]);
 
   if (selectedClientId) {
@@ -493,16 +527,16 @@ export default function PageClients({ session }) {
             description="Notas e credenciais"
             count={parseAccesses(clientDetail.notes).length}
             tone="access"
-            selected={false}
-            onClick={() => setShowAccessModal(true)}
+            selected={selectedTool === "access"}
+            onClick={() => setSelectedTool("access")}
           />
         </section>
 
         <section className="table-wrap client-integration-table">
           <div className="table-toolbar table-toolbar--split">
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <strong>{selectedTool === "n8n" ? "Automações n8n" : selectedTool === "Typebot" ? "Bots Typebot" : "Instâncias v4chat"}</strong>
-              <span>{selectedTool === "n8n" ? `${filteredAutomations.length} de ${automations.length}` : selectedTool === "Typebot" ? `${bots.length} ${bots.length === 1 ? "registro vinculado" : "registros vinculados"}` : `${instances.length} registros vinculados`}</span>
+              <strong>{selectedTool === "n8n" ? "Automações n8n" : selectedTool === "Typebot" ? "Bots Typebot" : selectedTool === "access" ? "Acessos e Credenciais" : "Instâncias v4chat"}</strong>
+              <span>{selectedTool === "n8n" ? `${filteredAutomations.length} de ${automations.length}` : selectedTool === "Typebot" ? `${bots.length} ${bots.length === 1 ? "registro vinculado" : "registros vinculados"}` : selectedTool === "access" ? `${parseAccesses(clientDetail.notes).length} credenciais` : `${instances.length} registros vinculados`}</span>
               {selectedTool === "n8n" && (
                 <button 
                   className="btn btn--outline btn--sm" 
@@ -679,6 +713,112 @@ export default function PageClients({ session }) {
               </table>
             )
           )}
+
+          {selectedTool === "access" && (
+            <div style={{ padding: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <span>Gerencie senhas, links e notas do cliente.</span>
+                {isAdmin && (
+                  <button 
+                    className="btn btn--primary btn--sm" 
+                    onClick={() => {
+                      setEditingAccess(null);
+                      setAccessTitle("");
+                      setAccessBody("");
+                      setShowAccessForm(true);
+                      setShowAccessModal(true);
+                    }}
+                  >
+                    + Nova credencial
+                  </button>
+                )}
+              </div>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {parseAccesses(clientDetail.notes).length === 0 ? (
+                  <EmptyState icon="🔒" title="Sem acessos" description="Nenhuma credencial cadastrada para este cliente." compact />
+                ) : (
+                  parseAccesses(clientDetail.notes).map((item) => {
+                    const hasHtml = /<[a-z][\s\S]*>/i.test(item.body || "");
+                    const isCopied = copyFeedback[item.id] === 'body';
+                    const isLinkCopied = copyFeedback[item.id] === 'link';
+                    
+                    return (
+                      <div key={item.id} style={{ background: "var(--bg-secondary)", borderRadius: "8px", border: "1px solid var(--border)", overflow: "hidden" }}>
+                        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.02)" }}>
+                          <strong style={{ fontSize: "14px", color: "var(--text-primary)" }}>{item.title}</strong>
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <button 
+                              className={`btn btn--sm ${isLinkCopied ? 'btn--primary' : 'btn--outline'}`}
+                              style={{ padding: "4px 8px", fontSize: "12px" }}
+                              onClick={() => {
+                                // Extract first URL if possible for the link
+                                const urlMatch = (item.body || "").match(/https?:\/\/[^\s]+/);
+                                const textToCopy = urlMatch ? urlMatch[0] : item.body;
+                                navigator.clipboard?.writeText(textToCopy);
+                                setCopyFeedback({ [item.id]: 'link' });
+                                setTimeout(() => setCopyFeedback({}), 2000);
+                              }}
+                              title="Copia o primeiro link encontrado ou o conteúdo"
+                            >
+                              {isLinkCopied ? "✓ Link" : "🔗 Copiar Link"}
+                            </button>
+                            <button 
+                              className={`btn btn--sm ${isCopied ? 'btn--primary' : 'btn--outline'}`}
+                              style={{ padding: "4px 8px", fontSize: "12px" }}
+                              onClick={() => {
+                                navigator.clipboard?.writeText(item.body || "");
+                                setCopyFeedback({ [item.id]: 'body' });
+                                setTimeout(() => setCopyFeedback({}), 2000);
+                              }}
+                            >
+                              {isCopied ? "✓ Acesso" : "📋 Copiar Acesso"}
+                            </button>
+                            {isAdmin && (
+                              <>
+                                <button 
+                                  className="btn btn--ghost btn--sm" 
+                                  style={{ padding: "4px 8px", fontSize: "12px" }}
+                                  onClick={() => {
+                                    setEditingAccess(item);
+                                    setAccessTitle(item.title);
+                                    setAccessBody(item.body);
+                                    setShowAccessForm(true);
+                                    setShowAccessModal(true);
+                                  }}
+                                >
+                                  ✏️ Editar
+                                </button>
+                                <button 
+                                  className="btn btn--ghost btn--sm text-danger" 
+                                  style={{ padding: "4px 8px", fontSize: "12px" }}
+                                  onClick={() => {
+                                    if (confirm(`Tem certeza que deseja excluir "${item.title}"?`)) {
+                                      const nextList = parseAccesses(clientDetail.notes).filter(x => x.id !== item.id);
+                                      saveAccessesList(nextList);
+                                    }
+                                  }}
+                                >
+                                  🗑️
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ padding: "16px", fontSize: "13px", fontFamily: "monospace", color: "var(--text-primary)", whiteSpace: hasHtml ? "normal" : "pre-wrap", overflowX: "auto" }}>
+                          {hasHtml ? (
+                            <div dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(item.body) }} />
+                          ) : (
+                            item.body || <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Sem conteúdo</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         {selectedAutomation && <ExecutionModal automation={selectedAutomation} onClose={() => setSelectedAutomation(null)} />}
@@ -738,131 +878,7 @@ export default function PageClients({ session }) {
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                      <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
-                        {accessesList.length} credencial{accessesList.length !== 1 ? "is" : ""} cadastrada{accessesList.length !== 1 ? "s" : ""}
-                      </span>
-                      {isAdmin && (
-                        <button 
-                          className="btn btn--primary btn--sm" 
-                          onClick={() => {
-                            setEditingAccess(null);
-                            setAccessTitle("");
-                            setAccessBody("");
-                            setShowAccessForm(true);
-                          }}
-                        >
-                          + Novo acesso
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="accesses-list" style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "400px", overflowY: "auto", paddingRight: "4px" }}>
-                      {accessesList.length === 0 ? (
-                        <div style={{ padding: "40px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: "14px" }}>
-                          🗝️ Nenhuma credencial cadastrada para este cliente.
-                        </div>
-                      ) : (
-                        accessesList.map((item) => {
-                          const isLegacy = item.id === "legacy";
-                          const hasHtml = isLegacy && (/<[a-z][\s\S]*>/i.test(item.body));
-                          const isCopied = !!copyFeedback[item.id];
-
-                          return (
-                            <div 
-                              key={item.id} 
-                              className="executive-card" 
-                              style={{ 
-                                padding: "16px", 
-                                margin: 0, 
-                                border: "1px solid var(--border)", 
-                                borderRadius: "8px",
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: "10px"
-                              }}
-                            >
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <strong style={{ fontSize: "14px", color: "var(--text-primary)" }}>{item.title}</strong>
-                                <div style={{ display: "flex", gap: "8px" }}>
-                                  <button 
-                                    className="btn btn--ghost btn--sm" 
-                                    style={{ padding: "4px 8px", fontSize: "12px", gap: "4px" }}
-                                    onClick={() => {
-                                      const textToCopy = hasHtml ? item.body.replace(/<[^>]*>/g, '') : item.body;
-                                      navigator.clipboard?.writeText(textToCopy);
-                                      setCopyFeedback(prev => ({ ...prev, [item.id]: true }));
-                                      setTimeout(() => {
-                                        setCopyFeedback(prev => ({ ...prev, [item.id]: false }));
-                                      }, 2000);
-                                    }}
-                                  >
-                                    {isCopied ? "✓ Copiado" : "📋 Copiar"}
-                                  </button>
-                                  {isAdmin && (
-                                    <>
-                                      <button 
-                                        className="btn btn--ghost btn--sm" 
-                                        style={{ padding: "4px 8px", fontSize: "12px" }}
-                                        onClick={() => {
-                                          setEditingAccess(item);
-                                          setAccessTitle(item.title);
-                                          setAccessBody(item.body);
-                                          setShowAccessForm(true);
-                                        }}
-                                      >
-                                        ✏️ Editar
-                                      </button>
-                                      <button 
-                                        className="btn btn--ghost btn--sm text-danger" 
-                                        style={{ padding: "4px 8px", fontSize: "12px" }}
-                                        onClick={() => {
-                                          if (confirm(`Tem certeza que deseja excluir "${item.title}"?`)) {
-                                            const nextList = accessesList.filter(x => x.id !== item.id);
-                                            saveAccessesList(nextList);
-                                          }
-                                        }}
-                                      >
-                                        🗑️ Excluir
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                              <div 
-                                style={{ 
-                                  backgroundColor: "var(--bg-page)", 
-                                  border: "1px solid var(--border-muted)", 
-                                  borderRadius: "6px", 
-                                  padding: "12px", 
-                                  fontFamily: "monospace", 
-                                  fontSize: "13px", 
-                                  color: "var(--text-primary)",
-                                  whiteSpace: hasHtml ? "normal" : "pre-wrap",
-                                  overflowX: "auto"
-                                }}
-                              >
-                                {hasHtml ? (
-                                  <div dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(item.body) }} />
-                                ) : (
-                                  item.body || <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Sem conteúdo</span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    <div className="modal-actions" style={{ marginTop: "24px" }}>
-                      <button className="btn btn--ghost" onClick={() => setShowAccessModal(false)}>
-                        Fechar
-                      </button>
-                    </div>
-                  </div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
@@ -949,6 +965,17 @@ export default function PageClients({ session }) {
                 </select>
                 <select
                   className="editor-sidebar__select select--sm"
+                  value={tempSquad}
+                  onChange={(e) => setTempSquad(e.target.value)}
+                  style={{ minWidth: '140px', flex: '1 1 150px' }}
+                >
+                  <option value="all">Todos os Squads</option>
+                  {Array.from(new Set(clients.map(c => c.squad).filter(Boolean))).map(squad => (
+                    <option key={squad} value={squad}>{squad}</option>
+                  ))}
+                </select>
+                <select
+                  className="editor-sidebar__select select--sm"
                   value={tempSortBy}
                   onChange={(e) => setTempSortBy(e.target.value)}
                   style={{ minWidth: '140px', flex: '1 1 150px' }}
@@ -970,8 +997,11 @@ export default function PageClients({ session }) {
                     setStatusFilter("all");
                     setTempIntegration("all");
                     setIntegrationFilter("all");
+                    setTempSquad("all");
+                    setSquadFilter("all");
                     setTempSortBy("name");
                     setSortBy("name");
+                    setSortOrder("asc");
                   }}
                   style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
                 >
@@ -984,6 +1014,7 @@ export default function PageClients({ session }) {
                     setQ(tempSearch);
                     setStatusFilter(tempStatus);
                     setIntegrationFilter(tempIntegration);
+                    setSquadFilter(tempSquad);
                     setSortBy(tempSortBy);
                   }}
                 >
@@ -1135,11 +1166,38 @@ export default function PageClients({ session }) {
           <table className="table">
             <thead>
               <tr>
-                <th>Nome</th>
+                <th 
+                  onClick={() => {
+                    if (sortBy === "name") {
+                      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                    } else {
+                      setSortBy("name");
+                      setSortOrder("asc");
+                    }
+                  }}
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                  title="Ordenar por Nome"
+                >
+                  Nome {sortBy === "name" && (sortOrder === "asc" ? "↑" : "↓")}
+                </th>
                 <th>Status</th>
                 <th>Automações</th>
                 <th>Bots</th>
                 <th>Acessos</th>
+                <th 
+                  onClick={() => {
+                    if (sortBy === "updatedAt") {
+                      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                    } else {
+                      setSortBy("updatedAt");
+                      setSortOrder("asc"); // asc here means newest first since we used db.getTime() - da.getTime()
+                    }
+                  }}
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                  title="Ordenar por Atualização"
+                >
+                  Atualização {sortBy === "updatedAt" && (sortOrder === "asc" ? "↓" : "↑")}
+                </th>
                 <th style={{ textAlign: "right" }}>Ação</th>
               </tr>
             </thead>
@@ -1160,6 +1218,7 @@ export default function PageClients({ session }) {
                     <span className="muted-cell"> / {client.totalTypebots || 0}</span>
                   </td>
                   <td><strong>{client.accessesCount ?? parseAccesses(client.notes).length}</strong></td>
+                  <td className="muted-cell">{client.updatedAt || client.updated_at ? new Date(client.updatedAt || client.updated_at).toLocaleDateString() : "—"}</td>
                   <td style={{ textAlign: "right" }}>
                     <button 
                       className="btn btn--outline" 
