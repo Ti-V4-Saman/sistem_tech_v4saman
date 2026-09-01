@@ -152,21 +152,22 @@ docRoutes.get('/', requirePermission('docs.view'), asyncHandler(async (req, res)
         d.status = 'published' 
         AND (
           NOT EXISTS (
-            SELECT 1 FROM document_tags dt
-            JOIN tags t ON t.id = dt.tag_id
-            JOIN job_roles jr ON jr.organization_id = t.organization_id AND jr.name = t.name
-            WHERE dt.document_id = d.id
+            SELECT 1 FROM document_tags dt WHERE dt.document_id = d.id
           )
           OR EXISTS (
             SELECT 1 FROM document_tags dt
             JOIN tags t ON t.id = dt.tag_id
-            JOIN job_roles jr ON jr.organization_id = t.organization_id AND jr.name = t.name
-            WHERE dt.document_id = d.id AND jr.slug = ?
+            WHERE dt.document_id = d.id 
+              AND (
+                LOWER(t.name) = 'todos'
+                OR LOWER(t.name) = ?
+                OR LOWER(t.name) = ?
+              )
           )
         )
       )
     )`;
-    params.push(req.user.id, req.user.job_role_slug);
+    params.push(req.user.id, (req.user.job_role_name || '').toLowerCase(), (req.user.team_name || '').toLowerCase());
   }
 
   const docs = await getDocumentRows(whereSql, params);
@@ -184,21 +185,22 @@ docRoutes.get('/:id', requirePermission('docs.view'), asyncHandler(async (req, r
         d.status = 'published'
         AND (
           NOT EXISTS (
-            SELECT 1 FROM document_tags dt
-            JOIN tags t ON t.id = dt.tag_id
-            JOIN job_roles jr ON jr.organization_id = t.organization_id AND jr.name = t.name
-            WHERE dt.document_id = d.id
+            SELECT 1 FROM document_tags dt WHERE dt.document_id = d.id
           )
           OR EXISTS (
             SELECT 1 FROM document_tags dt
             JOIN tags t ON t.id = dt.tag_id
-            JOIN job_roles jr ON jr.organization_id = t.organization_id AND jr.name = t.name
-            WHERE dt.document_id = d.id AND jr.slug = ?
+            WHERE dt.document_id = d.id 
+              AND (
+                LOWER(t.name) = 'todos'
+                OR LOWER(t.name) = ?
+                OR LOWER(t.name) = ?
+              )
           )
         )
       )
     )`;
-    params.push(req.user.id, req.user.job_role_slug);
+    params.push(req.user.id, (req.user.job_role_name || '').toLowerCase(), (req.user.team_name || '').toLowerCase());
   }
 
   const docs = await getDocumentRows(whereSql, params);

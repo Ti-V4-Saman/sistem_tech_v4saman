@@ -45,12 +45,6 @@ export default function PageHome({ session, setPage }) {
               >
                 <Icons.Doc /> Base de Conhecimento
               </button>
-              <button
-                className="btn btn--outline"
-                onClick={() => setPage("help")}
-              >
-                <Icons.HelpCircle /> Precisa de ajuda? <span style={{ opacity: 0.8, fontSize: "14px", marginLeft: "4px" }} title="Em desenvolvimento">⚠</span>
-              </button>
             </div>
             
             {isSuperAdmin && (

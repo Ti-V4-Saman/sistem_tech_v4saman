@@ -663,12 +663,18 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
                         <option key={t.id || t.name} value={t.name}>{t.name}</option>
                       ))}
                     </select>
-                    <input type="text" value={newTagInput} onChange={e => setNewTagInput(e.target.value)} placeholder="Nova tag..." style={{ padding: "4px 8px", height: 28, fontSize: 12, width: 100, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--bg-card)", color: "var(--text-primary)", outline: "none" }}
+                    <input type="text" value={newTagInput} onChange={e => setNewTagInput(e.target.value)} placeholder="Ex: Todos, Atendimento, Squad Alpha" style={{ padding: "4px 8px", height: 28, fontSize: 12, width: 220, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--bg-card)", color: "var(--text-primary)", outline: "none" }}
                       onKeyDown={e => { if (e.key === "Enter" && newTagInput.trim()) { if (onCreateTag) onCreateTag({ name: newTagInput.trim(), color: "#6366f1" }); handleAddTag(newTagInput.trim()); } }}
                     />
                     <button onClick={() => { if (newTagInput.trim()) { if (onCreateTag) onCreateTag({ name: newTagInput.trim(), color: "#6366f1" }); handleAddTag(newTagInput.trim()); } }} style={{ padding: "4px 8px", height: 28, borderRadius: "var(--r-sm)", border: "none", background: "var(--bg-secondary)", color: "var(--text-primary)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>+</button>
                   </div>
                 )}
+              </div>
+              {canEdit && (
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: -12, marginBottom: 16 }}>
+                  Para controlar a visibilidade após publicado, adicione a tag "Todos", ou o nome exato da Função (ex: Atendimento) ou Squad do time.
+                </div>
+              )}
               </div>
             </div>
             <div ref={editorRef} className="doc-editor-content" contentEditable={canEdit} suppressContentEditableWarning style={{ paddingTop: 0, paddingBottom: 60 }} />

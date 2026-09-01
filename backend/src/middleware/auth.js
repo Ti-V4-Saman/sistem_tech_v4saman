@@ -11,12 +11,16 @@ export async function authenticate(req, res, next) {
     const { rows } = await query(
       `SELECT u.id, u.organization_id, u.name, u.email, u.status,
               ar.slug AS access_role_slug,
-              jr.slug AS job_role_slug
+              jr.slug AS job_role_slug,
+              jr.name AS job_role_name,
+              t.slug AS team_slug,
+              t.name AS team_name
          FROM users u
          LEFT JOIN user_roles ur ON ur.user_id = u.id
          LEFT JOIN roles ar ON ar.id = ur.role_id
          LEFT JOIN user_profiles up ON up.user_id = u.id
          LEFT JOIN job_roles jr ON jr.id = up.job_role_id
+         LEFT JOIN teams t ON t.id = up.team_id
         WHERE u.id = ? AND u.status = 'active'
         LIMIT 1`,
       [payload.sub]
