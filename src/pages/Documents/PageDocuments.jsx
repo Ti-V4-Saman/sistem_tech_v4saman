@@ -676,7 +676,6 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
                 </div>
               )}
               </div>
-            </div>
             <div ref={editorRef} className="doc-editor-content" contentEditable={canEdit} suppressContentEditableWarning style={{ paddingTop: 0, paddingBottom: 60 }} />
             {renderMediaHighlight()}
             {renderMediaToolbar()}

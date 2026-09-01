@@ -903,7 +903,6 @@ export default function PageClients({ session }) {
             {loading ? "Carregando clientes..." : `${filtered.length} de ${clients.length} cliente${clients.length !== 1 ? "s" : ""} no banco`}
           </div>
         </div>
-        </div>
       </div>
 
       {!loading && clients.length > 0 && (
