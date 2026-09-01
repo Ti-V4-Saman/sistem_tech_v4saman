@@ -45,6 +45,8 @@ alertRoutes.get('/', requirePermission('alerts.view'), asyncHandler(async (req, 
     open_alerts: Number(totals[0]?.open_alerts || 0), 
     total_occurrences: Number(totals[0]?.total_occurrences || 0) 
   });
+}));
+
 // Get specific error events for an alert
 alertRoutes.get('/:id/events', requirePermission('alerts.view'), asyncHandler(async (req, res) => {
   const { rows } = await query(
