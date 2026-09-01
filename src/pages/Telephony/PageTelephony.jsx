@@ -209,127 +209,117 @@ export default function PageTelephony({ permissions = [] }) {
         </section>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '36px', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div className="search-wrap" style={{ flex: 1, minWidth: '200px', maxWidth: '280px' }}>
-            <span className="si" style={{ paddingLeft: '12px', display: 'flex', alignItems: 'center' }}>🔍</span>
-            <input 
-              type="text" 
-              className="search-input" 
-              placeholder="Buscar por número..." 
-              value={tempSearch} 
-              onChange={e => setTempSearch(e.target.value)} 
-              onKeyDown={(e) => { if (e.key === 'Enter') setSearch(tempSearch); }}
-              style={{ width: "100%", paddingLeft: "36px" }}
-            />
-          </div>
-
-          <button 
-            type="button" 
-            className="btn btn--primary btn--sm" 
-            onClick={() => setSearch(tempSearch)}
-          >
-            Pesquisar
-          </button>
-
-          <button 
-            type="button" 
-            className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            Filtros Avançados
-          </button>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
+        <div className="search-wrap" style={{ flex: '1 1 200px', minWidth: '160px', maxWidth: '320px' }}>
+          <span className="si" style={{ paddingLeft: '12px', display: 'flex', alignItems: 'center' }}>🔍</span>
+          <input 
+            type="text" 
+            className="search-input" 
+            placeholder="Buscar por número..." 
+            value={tempSearch} 
+            onChange={e => setTempSearch(e.target.value)} 
+            onKeyDown={(e) => { if (e.key === 'Enter') setSearch(tempSearch); }}
+            style={{ width: "100%", paddingLeft: "36px" }}
+          />
         </div>
 
+        <button 
+          type="button" 
+          className="btn btn--primary btn--sm" 
+          onClick={() => setSearch(tempSearch)}
+        >
+          Pesquisar
+        </button>
+
+        <button 
+          type="button" 
+          className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
+          onClick={() => setShowFilters(!showFilters)}
+        >
+          Filtros Avançados
+        </button>
+
         {showFilters && (
-          <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            gap: '12px', 
-            marginTop: '4px', 
-            padding: '16px', 
-            background: 'var(--bg-secondary)', 
-            borderRadius: '12px', 
-            border: '1px solid var(--border)' 
-          }}>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <select 
-                className="input" 
-                style={{ height: '36px', padding: '0 8px', minWidth: '120px', fontSize: '13px', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-primary)', flex: '1 1 120px' }}
-                value={tempCategory} 
-                onChange={e => setTempCategory(e.target.value)}
-              >
-                <option value="">Categoria: Todas</option>
-                <option value="fixo">Fixo</option>
-                <option value="celular">Celular</option>
-                <option value="celular_voip">Celular VoIP</option>
-              </select>
-              <select 
-                className="input" 
-                style={{ height: '36px', padding: '0 8px', minWidth: '120px', fontSize: '13px', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-primary)', flex: '1 1 120px' }}
-                value={tempStatus} 
-                onChange={e => setTempStatus(e.target.value)}
-              >
-                <option value="">Status: Todos</option>
-                <option value="ativo">Ativo</option>
-                <option value="aguardando_ativacao">Aguardando</option>
-                <option value="inativo">Inativo</option>
-              </select>
-              <select 
-                className="input" 
-                style={{ height: '36px', padding: '0 8px', minWidth: '120px', fontSize: '13px', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-primary)', flex: '1 1 120px' }}
-                value={tempTeam} 
-                onChange={e => setTempTeam(e.target.value)}
-              >
-                <option value="">Time: Todos</option>
-                <option value="Sem time">Sem time</option>
-                {uniqueTeams.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <select 
-                className="input" 
-                style={{ height: '36px', padding: '0 8px', minWidth: '120px', fontSize: '13px', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-primary)', flex: '1 1 120px' }}
-                value={tempSector} 
-                onChange={e => setTempSector(e.target.value)}
-              >
-                <option value="">Setor: Todos</option>
-                <option value="Sem setor">Sem setor</option>
-                {uniqueSectors.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '4px' }}>
-              <button 
-                type="button" 
-                className="btn btn--outline btn--sm text-danger" 
-                onClick={() => {
-                  setTempSearch("");
-                  setSearch("");
-                  setTempCategory("");
-                  setCategory("");
-                  setTempStatus("");
-                  setStatus("");
-                  setTempTeam("");
-                  setTeam("");
-                  setTempSector("");
-                  setSector("");
-                }}
-                style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
-              >
-                Limpar Filtros
-              </button>
-              <button 
-                type="button" 
-                className="btn btn--primary btn--sm" 
-                onClick={() => {
-                  setSearch(tempSearch);
-                  setCategory(tempCategory);
-                  setStatus(tempStatus);
-                  setTeam(tempTeam);
-                  setSector(tempSector);
-                }}
-              >
-                Filtrar
-              </button>
-            </div>
+          <div className="filters-inline-float">
+            <select 
+              className="editor-sidebar__select select--sm"
+              style={{ minWidth: '130px' }}
+              value={tempCategory} 
+              onChange={e => setTempCategory(e.target.value)}
+            >
+              <option value="">Categoria: Todas</option>
+              <option value="fixo">Fixo</option>
+              <option value="celular">Celular</option>
+              <option value="celular_voip">Celular VoIP</option>
+            </select>
+
+            <select 
+              className="editor-sidebar__select select--sm"
+              style={{ minWidth: '130px' }}
+              value={tempStatus} 
+              onChange={e => setTempStatus(e.target.value)}
+            >
+              <option value="">Status: Todos</option>
+              <option value="ativo">Ativo</option>
+              <option value="aguardando_ativacao">Aguardando</option>
+              <option value="inativo">Inativo</option>
+            </select>
+
+            <select 
+              className="editor-sidebar__select select--sm"
+              style={{ minWidth: '130px' }}
+              value={tempTeam} 
+              onChange={e => setTempTeam(e.target.value)}
+            >
+              <option value="">Time: Todos</option>
+              <option value="Sem time">Sem time</option>
+              {uniqueTeams.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+
+            <select 
+              className="editor-sidebar__select select--sm"
+              style={{ minWidth: '130px' }}
+              value={tempSector} 
+              onChange={e => setTempSector(e.target.value)}
+            >
+              <option value="">Setor: Todos</option>
+              <option value="Sem setor">Sem setor</option>
+              {uniqueSectors.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+
+            <button 
+              type="button" 
+              className="btn btn--outline btn--sm text-danger" 
+              onClick={() => {
+                setTempSearch("");
+                setSearch("");
+                setTempCategory("");
+                setCategory("");
+                setTempStatus("");
+                setStatus("");
+                setTempTeam("");
+                setTeam("");
+                setTempSector("");
+                setSector("");
+              }}
+              style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
+            >
+              Limpar Filtros
+            </button>
+
+            <button 
+              type="button" 
+              className="btn btn--primary btn--sm" 
+              onClick={() => {
+                setSearch(tempSearch);
+                setCategory(tempCategory);
+                setStatus(tempStatus);
+                setTeam(tempTeam);
+                setSector(tempSector);
+              }}
+            >
+              Filtrar
+            </button>
           </div>
         )}
       </div>

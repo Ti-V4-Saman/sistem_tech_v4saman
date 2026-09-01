@@ -45,6 +45,27 @@ alertRoutes.get('/', requirePermission('alerts.view'), asyncHandler(async (req, 
     open_alerts: Number(totals[0]?.open_alerts || 0), 
     total_occurrences: Number(totals[0]?.total_occurrences || 0) 
   });
+// Get specific error events for an alert
+alertRoutes.get('/:id/events', requirePermission('alerts.view'), asyncHandler(async (req, res) => {
+  const { rows } = await query(
+    `SELECT 
+      e.id,
+      e.alert_id,
+      e.automation_run_id,
+      e.external_run_id,
+      e.error_message,
+      e.occurred_at,
+      a.url AS automation_url
+     FROM operational_alert_events e
+     JOIN operational_alerts oa ON oa.id = e.alert_id
+     JOIN automations a ON a.id = oa.automation_id
+     WHERE e.alert_id = ? AND e.organization_id = ?
+     ORDER BY e.occurred_at DESC
+     LIMIT 50`,
+    [req.params.id, req.user.organization_id]
+  );
+
+  ok(res, { data: rows });
 }));
 
 // Resolve an alert

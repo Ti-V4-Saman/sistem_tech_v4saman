@@ -38,7 +38,7 @@ export function CustomTooltip({ active, payload, label }) {
 /**
  * Indicador visual de execuções recentes (mini barras de status).
  */
-export function ExecutionDash({ executions, workflowId }) {
+export function ExecutionDash({ executions, workflowId, onClick }) {
   if (!executions || executions.length === 0)
     return (
       <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
@@ -47,7 +47,12 @@ export function ExecutionDash({ executions, workflowId }) {
     );
 
   return (
-    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+    <div 
+      style={{ display: "flex", gap: 4, alignItems: "center" }}
+      onClick={(e) => {
+        if (onClick) onClick(e);
+      }}
+    >
       {executions.map((exec) => {
         const isError = exec.status === "error";
         const isSuccess = exec.status === "success";
@@ -62,7 +67,7 @@ export function ExecutionDash({ executions, workflowId }) {
             key={exec.id}
             title={
               isError
-                ? "Falha - Clique para abrir no n8n"
+                ? `Falha (${exec.error_message || exec.errorMessage || 'Erro de execução'}) - Clique para ver historico`
                 : `Status: ${exec.status}`
             }
             style={{
@@ -70,18 +75,17 @@ export function ExecutionDash({ executions, workflowId }) {
               height: 12,
               borderRadius: 3,
               backgroundColor: color,
-              cursor: isError ? "pointer" : "default",
+              cursor: "pointer",
               opacity: 0.8,
+              transition: "transform 0.1s ease, opacity 0.1s ease",
             }}
-            onMouseOver={(e) => (e.currentTarget.style.opacity = 1)}
-            onMouseOut={(e) => (e.currentTarget.style.opacity = 0.8)}
-            onClick={() => {
-              if (isError) {
-                window.open(
-                  `https://n8ops.v4saman.com/workflow/${workflowId}/executions/${exec.id}`,
-                  "_blank"
-                );
-              }
+            onMouseOver={(e) => {
+              e.currentTarget.style.opacity = 1;
+              e.currentTarget.style.transform = "scale(1.2)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.opacity = 0.8;
+              e.currentTarget.style.transform = "scale(1)";
             }}
           />
         );

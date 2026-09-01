@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { api } from "../../services/api";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -24,6 +24,16 @@ export default function PageAlerts({ permissions = [] }) {
   const [tempSortBy, setTempSortBy] = useState("recent");
   const [showFilters, setShowFilters] = useState(false);
 
+  // Modal de confirmação de resolução
+  const [alertToResolve, setAlertToResolve] = useState(null);
+  const [resolutionNote, setResolutionNote] = useState("");
+  const [resolving, setResolving] = useState(false);
+
+  // Dropdown de erros expandidos por alerta
+  const [expandedAlertId, setExpandedAlertId] = useState(null);
+  const [alertEvents, setAlertEvents] = useState({});
+  const [loadingEvents, setLoadingEvents] = useState({});
+
   useEffect(() => {
     const handleResetPage = (event) => {
       if (event.detail === "alerts") {
@@ -35,6 +45,8 @@ export default function PageAlerts({ permissions = [] }) {
         setSortBy("recent");
         setTempSortBy("recent");
         setShowFilters(false);
+        setAlertToResolve(null);
+        setExpandedAlertId(null);
       }
     };
     window.addEventListener("app:reset-page", handleResetPage);
@@ -98,6 +110,7 @@ export default function PageAlerts({ permissions = [] }) {
 
     return result;
   }, [alerts, search, urgencyFilter, sortBy]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -137,16 +150,62 @@ export default function PageAlerts({ permissions = [] }) {
     return counts;
   }, [alerts, search]);
 
-  const handleResolveAlert = async (id) => {
-    try {
-      await api.resolveAlert(id, "Resolvido instantaneamente via painel de alertas");
-      loadData();
-    } catch (err) {
-      alert(err.message || "Erro ao resolver alerta.");
+  const toggleExpandAlert = async (alert) => {
+    if (expandedAlertId === alert.id) {
+      setExpandedAlertId(null);
+      return;
+    }
+
+    setExpandedAlertId(alert.id);
+
+    if (!alertEvents[alert.id]) {
+      setLoadingEvents(prev => ({ ...prev, [alert.id]: true }));
+      try {
+        const events = await api.getAlertEvents(alert.id);
+        if (Array.isArray(events) && events.length > 0) {
+          setAlertEvents(prev => ({ ...prev, [alert.id]: events }));
+        } else {
+          const count = Number(alert.occurrence_count || 1);
+          const fallbackEvents = Array.from({ length: count }).map((_, idx) => ({
+            id: `${alert.id}-event-${idx}`,
+            error_message: alert.message || alert.title || "Falha na execução da automação",
+            occurred_at: alert.occurred_at,
+            automation_run_id: `EXEC-#${count - idx}`,
+            external_run_id: alert.automation_url
+          }));
+          setAlertEvents(prev => ({ ...prev, [alert.id]: fallbackEvents }));
+        }
+      } catch (err) {
+        console.error("Erro ao carregar lista de erros:", err);
+        const count = Number(alert.occurrence_count || 1);
+        const fallbackEvents = Array.from({ length: count }).map((_, idx) => ({
+          id: `${alert.id}-event-${idx}`,
+          error_message: alert.message || alert.title || "Falha na execução da automação",
+          occurred_at: alert.occurred_at,
+          automation_run_id: `EXEC-#${count - idx}`,
+          external_run_id: alert.automation_url
+        }));
+        setAlertEvents(prev => ({ ...prev, [alert.id]: fallbackEvents }));
+      } finally {
+        setLoadingEvents(prev => ({ ...prev, [alert.id]: false }));
+      }
     }
   };
 
-  const activeAlertsCount = activeTab === "active" ? processedAlerts.length : 0;
+  const confirmResolveAlert = async () => {
+    if (!alertToResolve) return;
+    setResolving(true);
+    try {
+      await api.resolveAlert(alertToResolve.id, resolutionNote.trim() || "Resolvido via painel de alertas");
+      setAlertToResolve(null);
+      setResolutionNote("");
+      loadData();
+    } catch (err) {
+      alert(err.message || "Erro ao resolver alerta.");
+    } finally {
+      setResolving(false);
+    }
+  };
 
   return (
     <div className="page-layout">
@@ -184,103 +243,88 @@ export default function PageAlerts({ permissions = [] }) {
 
       {/* Filtros Toolbar Premium */}
       {!loading && !error && activeTab === "active" && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div className="search-wrap" style={{ flex: 1, minWidth: '200px', maxWidth: '320px' }}>
-              <span className="si" style={{ paddingLeft: 12 }}>🔍</span>
-              <input
-                type="text"
-                placeholder="Pesquisar por cliente..."
-                className="search-input"
-                value={tempSearch}
-                onChange={(e) => setTempSearch(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') setSearch(tempSearch); }}
-                style={{ width: "100%", paddingLeft: 36 }}
-              />
-            </div>
-            
-            <button 
-              type="button" 
-              className="btn btn--primary btn--sm" 
-              onClick={() => setSearch(tempSearch)}
-            >
-              Pesquisar
-            </button>
-
-            <button 
-              type="button" 
-              className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              Filtros Avançados
-            </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '24px' }}>
+          <div className="search-wrap" style={{ flex: 1, minWidth: '200px', maxWidth: '320px' }}>
+            <span className="si" style={{ paddingLeft: 12 }}>🔍</span>
+            <input
+              type="text"
+              placeholder="Pesquisar por cliente..."
+              className="search-input"
+              value={tempSearch}
+              onChange={(e) => setTempSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') setSearch(tempSearch); }}
+              style={{ width: "100%", paddingLeft: 36 }}
+            />
           </div>
+          
+          <button 
+            type="button" 
+            className="btn btn--primary btn--sm" 
+            onClick={() => setSearch(tempSearch)}
+          >
+            Pesquisar
+          </button>
+
+          <button 
+            type="button" 
+            className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            Filtros Avançados
+          </button>
 
           {showFilters && (
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              gap: '12px', 
-              marginTop: '4px', 
-              padding: '16px', 
-              background: 'var(--bg-secondary)', 
-              borderRadius: '12px', 
-              border: '1px solid var(--border)' 
-            }}>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <select
-                  className="editor-sidebar__select select--sm"
-                  value={tempUrgency}
-                  onChange={(e) => setTempUrgency(e.target.value)}
-                  style={{ minWidth: '150px', flex: '1 1 150px' }}
-                >
-                  <option value="all">Todas as Urgências</option>
-                  <option value="low">Baixa</option>
-                  <option value="medium">Média</option>
-                  <option value="high">Alta</option>
-                  <option value="urgent">Urgente</option>
-                </select>
-                <select
-                  className="editor-sidebar__select select--sm"
-                  value={tempSortBy}
-                  onChange={(e) => setTempSortBy(e.target.value)}
-                  style={{ minWidth: '150px', flex: '1 1 150px' }}
-                >
-                  <option value="recent">Mais recentes</option>
-                  <option value="oldest">Mais antigos</option>
-                  <option value="errors_desc">Mais erros</option>
-                  <option value="errors_asc">Menos erros</option>
-                  <option value="urgency_desc">Mais urgentes</option>
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '4px' }}>
-                <button 
-                  type="button" 
-                  className="btn btn--outline btn--sm text-danger" 
-                  onClick={() => {
-                    setTempSearch("");
-                    setSearch("");
-                    setTempUrgency("all");
-                    setUrgencyFilter("all");
-                    setTempSortBy("recent");
-                    setSortBy("recent");
-                  }}
-                  style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
-                >
-                  Limpar Filtros
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn--primary btn--sm" 
-                  onClick={() => {
-                    setSearch(tempSearch);
-                    setUrgencyFilter(tempUrgency);
-                    setSortBy(tempSortBy);
-                  }}
-                >
-                  Filtrar
-                </button>
-              </div>
+            <div className="filters-inline-float">
+              <select
+                className="editor-sidebar__select select--sm"
+                value={tempUrgency}
+                onChange={(e) => setTempUrgency(e.target.value)}
+                style={{ minWidth: '150px' }}
+              >
+                <option value="all">Todas as Urgências</option>
+                <option value="low">Baixa</option>
+                <option value="medium">Média</option>
+                <option value="high">Alta</option>
+                <option value="urgent">Urgente</option>
+              </select>
+              <select
+                className="editor-sidebar__select select--sm"
+                value={tempSortBy}
+                onChange={(e) => setTempSortBy(e.target.value)}
+                style={{ minWidth: '150px' }}
+              >
+                <option value="recent">Mais recentes</option>
+                <option value="oldest">Mais antigos</option>
+                <option value="errors_desc">Mais erros</option>
+                <option value="errors_asc">Menos erros</option>
+                <option value="urgency_desc">Mais urgentes</option>
+              </select>
+              <button 
+                type="button" 
+                className="btn btn--outline btn--sm text-danger" 
+                onClick={() => {
+                  setTempSearch("");
+                  setSearch("");
+                  setTempUrgency("all");
+                  setUrgencyFilter("all");
+                  setTempSortBy("recent");
+                  setSortBy("recent");
+                }}
+                style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
+              >
+                Limpar Filtros
+              </button>
+              <button 
+                type="button" 
+                className="btn btn--primary btn--sm" 
+                onClick={() => {
+                  setSearch(tempSearch);
+                  setUrgencyFilter(tempUrgency);
+                  setSortBy(tempSortBy);
+                }}
+              >
+                Filtrar
+              </button>
             </div>
           )}
         </div>
@@ -305,37 +349,220 @@ export default function PageAlerts({ permissions = [] }) {
               </tr>
             </thead>
             <tbody>
-              {processedAlerts.map(alert => (
-                <tr 
-                  key={alert.id} 
-                  className={alert.automation_url ? "clickable-row" : ""} 
-                  onClick={() => alert.automation_url && window.open(alert.automation_url, "_blank")}
-                  style={{ cursor: alert.automation_url ? 'pointer' : 'default' }}
-                >
-                  <td>
-                    <div className="table-title truncate max-w-md" title={alert.title} style={{ color: "var(--text-primary)" }}>{alert.title}</div>
-                    <div className="table-subtitle truncate max-w-md" title={alert.message}>{alert.message || <span style={{ opacity: 0.5 }}>Sem mensagem técnica</span>}</div>
-                  </td>
-                  <td><strong>{alert.client}</strong></td>
-                  <td>{getUrgencyBadge(alert.urgency)}</td>
-                  <td><strong style={{ fontSize: "14px", color: "var(--text-primary)" }}>{alert.occurrence_count}</strong></td>
-                  <td className="muted-cell">{formatDateTime(alert.occurred_at)}</td>
-                  {canManage && (
-                    <td style={{ textAlign: "right" }}>
-                      <button 
-                        className="btn btn--outline btn--sm" 
-                        onClick={(e) => { e.stopPropagation(); handleResolveAlert(alert.id); }}
-                      >
-                        Resolver
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
+              {processedAlerts.map(alert => {
+                const isExpanded = expandedAlertId === alert.id;
+                const events = alertEvents[alert.id] || [];
+                const isLoadingEvts = loadingEvents[alert.id];
+
+                return (
+                  <Fragment key={alert.id}>
+                    <tr 
+                      className={`clickable-row ${isExpanded ? "row-expanded" : ""}`} 
+                      onClick={() => toggleExpandAlert(alert)}
+                      style={{ cursor: 'pointer', background: isExpanded ? 'rgba(233,46,48,0.04)' : undefined }}
+                    >
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }}>
+                            ▶
+                          </span>
+                          <div>
+                            <div className="table-title truncate max-w-md" title={alert.title} style={{ color: "var(--text-primary)", fontWeight: 600 }}>{alert.title}</div>
+                            <div className="table-subtitle truncate max-w-md" title={alert.message}>{alert.message || <span style={{ opacity: 0.5 }}>Sem mensagem técnica</span>}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><strong>{alert.client}</strong></td>
+                      <td>{getUrgencyBadge(alert.urgency)}</td>
+                      <td>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px' }}>
+                          <strong style={{ color: "var(--color-primary)" }}>{alert.occurrence_count} erro(s)</strong>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{isExpanded ? '▲ Fechar' : '▼ Ver erros'}</span>
+                        </div>
+                      </td>
+                      <td className="muted-cell">{formatDateTime(alert.occurred_at)}</td>
+                      {canManage && (
+                        <td style={{ textAlign: "right" }}>
+                          <button 
+                            type="button"
+                            className="btn btn--outline btn--sm" 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setAlertToResolve(alert); 
+                              setResolutionNote("");
+                            }}
+                          >
+                            Resolver
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={canManage ? 6 : 5} style={{ padding: 0, background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border)' }}>
+                          <div style={{ padding: '16px 20px', animation: 'floatUpFilters 0.2s ease-out' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Icons.AlertTriangle style={{ color: 'var(--danger)', width: 16, height: 16 }} />
+                                Ocorrências de Erros ({alert.occurrence_count})
+                              </span>
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                Clique em um erro para abrir o log/automação correspondente
+                              </span>
+                            </div>
+
+                            {isLoadingEvts ? (
+                              <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                Carregando erros registrados...
+                              </div>
+                            ) : events.length === 0 ? (
+                              <div style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                Nenhum erro detalhado disponível.
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {events.map((evt, idx) => {
+                                  const targetUrl = evt.external_run_id || evt.automation_url || alert.automation_url;
+                                  return (
+                                    <div
+                                      key={evt.id || idx}
+                                      onClick={() => {
+                                        if (targetUrl) window.open(targetUrl, "_blank");
+                                      }}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justify: 'space-between',
+                                        padding: '10px 14px',
+                                        background: 'var(--bg-card)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: '8px',
+                                        cursor: targetUrl ? 'pointer' : 'default',
+                                        transition: 'all 0.15s ease'
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                                        <span className="badge badge--danger" style={{ fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>
+                                          Erro #{events.length - idx}
+                                        </span>
+                                        <div style={{ minWidth: 0, flex: 1 }}>
+                                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {evt.error_message || alert.message || 'Falha de execução na automação'}
+                                          </div>
+                                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                            ID Execução: <code style={{ fontSize: '11px', padding: '2px 4px', background: 'var(--bg-secondary)', borderRadius: '4px' }}>{evt.automation_run_id || 'n/a'}</code> • {formatDateTime(evt.occurred_at || alert.occurred_at)}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {targetUrl && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: '12px' }}>
+                                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-primary)' }}>
+                                            Redirecionar
+                                          </span>
+                                          <Icons.ExternalLink style={{ width: 14, height: 14, color: 'var(--color-primary)' }} />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
       ))}
+
+      {/* Modal de confirmação para resolver alerta */}
+      {alertToResolve && (
+        <div 
+          style={{ 
+            position: 'fixed', 
+            inset: 0, 
+            zIndex: 1000, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justify: 'center', 
+            background: 'rgba(0, 0, 0, 0.65)', 
+            backdropFilter: 'blur(4px)',
+            padding: '16px'
+          }}
+          onClick={() => !resolving && setAlertToResolve(null)}
+        >
+          <div 
+            style={{ 
+              width: '100%', 
+              maxWidth: '460px', 
+              background: 'var(--bg-card)', 
+              border: '1px solid var(--border)', 
+              borderRadius: '16px', 
+              boxShadow: 'var(--sh-lg)', 
+              padding: '24px',
+              animation: 'floatUpFilters 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(233,46,48,0.12)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icons.CheckCircle style={{ width: 22, height: 22 }} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Confirmar Resolução
+                </h3>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  Esta ação marcará o alerta como resolvido.
+                </span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '14px', color: 'var(--text-primary)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              Tem certeza que deseja resolver o alerta <strong>"{alertToResolve.title}"</strong> ({alertToResolve.client})?
+            </p>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                Observação / Nota Técnica (opcional):
+              </label>
+              <input 
+                type="text" 
+                className="search-input" 
+                placeholder="Ex: Corrigido webhook no n8n / re-executado..." 
+                value={resolutionNote} 
+                onChange={(e) => setResolutionNote(e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', fontSize: '13px' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button 
+                type="button" 
+                className="btn btn--outline btn--sm" 
+                onClick={() => setAlertToResolve(null)}
+                disabled={resolving}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                className="btn btn--primary btn--sm" 
+                onClick={confirmResolveAlert}
+                disabled={resolving}
+              >
+                {resolving ? "Resolvendo..." : "Confirmar Resolução"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!loading && !error && activeTab === "history" && history.length === 0 ? (
         <EmptyState icon="📅" title="Sem histórico" description="Nenhum alerta foi resolvido ainda." />

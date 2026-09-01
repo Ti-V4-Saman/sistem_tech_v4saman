@@ -655,6 +655,11 @@ export const api = {
     return await request("/alerts");
   },
 
+  getAlertEvents: async (id) => {
+    const data = await request(`/alerts/${id}/events`);
+    return data.data || [];
+  },
+
   getAlertsHistory: async (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return await request(`/alerts/history?${q}`);

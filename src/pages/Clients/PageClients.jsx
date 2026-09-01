@@ -20,10 +20,14 @@ function formatDuration(ms) {
 }
 
 function getAutomationUrl(automation, execution) {
-  const workflowId = automation.externalId || automation.external_id;
-  const executionId = execution?.id;
-  if (!workflowId || !executionId) return null;
-  return `https://n8ops.v4saman.com/workflow/${workflowId}/executions/${executionId}`;
+  const workflowId = automation.externalId || automation.external_id || automation.id;
+  const executionId = execution?.id || execution?.execution_id || execution?.external_run_id;
+  if (workflowId && executionId) {
+    return `https://n8ops.v4saman.com/workflow/${workflowId}/executions/${executionId}`;
+  }
+  if (automation.workflowUrl) return automation.workflowUrl;
+  if (workflowId) return `https://n8ops.v4saman.com/workflow/${workflowId}`;
+  return null;
 }
 
 function normalizeText(value) {
@@ -90,6 +94,7 @@ function IntegrationCard({ label, description, count, active, tone, disabled, se
 
 function ExecutionModal({ automation, onClose }) {
   const [statusFilter, setStatusFilter] = useState("all");
+  const [showFilters, setShowFilters] = useState(false);
   if (!automation) return null;
   const executions = [...(automation.executions || [])].sort((a, b) => new Date(b.started_at || b.startedAt || 0) - new Date(a.started_at || a.startedAt || 0));
   const successCount = executions.filter((item) => isSuccessStatus(item.status)).length;
@@ -125,13 +130,31 @@ function ExecutionModal({ automation, onClose }) {
             />
           ) : (
             <>
-              <div className="execution-toolbar">
+              <div className="execution-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <span>{filteredExecutions.length} de {executions.length} execuções</span>
-                <select className="editor-sidebar__select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                  <option value="all">Todos os status</option>
-                  <option value="success">Somente sucesso</option>
-                  <option value="error">Somente erro</option>
-                </select>
+                <div style={{ position: "relative" }}>
+                  <button className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} onClick={() => setShowFilters(!showFilters)}>
+                    Filtros
+                  </button>
+                  {showFilters && (
+                    <div className="filters-inline-float" style={{ right: 0, top: '100%', marginTop: 8 }}>
+                       <div className="g2">
+                         <div>
+                           <label className="editor-sidebar__label">Status</label>
+                           <select className="editor-sidebar__select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                             <option value="all">Todos os status</option>
+                             <option value="success">Somente sucesso</option>
+                             <option value="error">Somente erro</option>
+                           </select>
+                         </div>
+                       </div>
+                       <div className="filters-inline-float__actions">
+                         <button className="btn btn--outline btn--sm" onClick={() => setStatusFilter("all")}>Limpar Filtros</button>
+                         <button className="btn btn--primary btn--sm" onClick={() => setShowFilters(false)}>Filtrar</button>
+                       </div>
+                    </div>
+                  )}
+                </div>
               </div>
               {filteredExecutions.length === 0 ? (
                 <EmptyState icon="🔎" title="Filtro sem resultado" description="Nenhuma execução bate com o status selecionado." compact />
@@ -150,15 +173,21 @@ function ExecutionModal({ automation, onClose }) {
                 <tbody>
                   {filteredExecutions.map((execution, index) => {
                     const url = getAutomationUrl(automation, execution);
+                    const isErr = isErrorStatus(execution.status);
                     return (
-                      <tr key={`${execution.id || index}-${execution.startedAt || index}`}>
+                      <tr key={`${execution.id || index}-${execution.startedAt || index}`} style={{ background: isErr ? 'rgba(233,46,48,0.04)' : undefined }}>
                         <td><StatusPill status={execution.status} /></td>
                         <td className="muted-cell">{execution.startedAt || execution.started_at || "—"}</td>
                         <td className="muted-cell">{execution.finishedAt || execution.stopped_at || "—"}</td>
                         <td>{formatDuration(execution.durationMs || execution.duration_ms)}</td>
                         <td style={{ textAlign: "right" }}>
                           {url ? (
-                            <button className="btn btn--outline btn--sm" onClick={() => window.open(url, "_blank")}>Abrir no n8n</button>
+                            <button 
+                              className={`btn btn--sm ${isErr ? 'btn--primary' : 'btn--outline'}`} 
+                              onClick={() => window.open(url, "_blank")}
+                            >
+                              {isErr ? "Ver erro no n8n ↗" : "Abrir no n8n ↗"}
+                            </button>
                           ) : (
                             <button className="btn btn--ghost btn--sm" onClick={() => navigator.clipboard?.writeText(String(execution.id || ""))}>Copiar ID</button>
                           )}
@@ -195,9 +224,11 @@ export default function PageClients({ session }) {
   const [sortOrder, setSortOrder] = useState("asc"); // asc or desc
   const [tempSortBy, setTempSortBy] = useState("name");
   const [showFilters, setShowFilters] = useState(false);
+  const [showAutoFilters, setShowAutoFilters] = useState(false);
   const [automationQuery, setAutomationQuery] = useState("");
   const [automationStatus, setAutomationStatus] = useState("all");
   const [clients, setClients] = useState([]);
+  const [systemSquads, setSystemSquads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -223,6 +254,30 @@ export default function PageClients({ session }) {
   const clientRequestSeq = useRef(0);
 
   const isAdmin = session?.user?.accessRoleSlug === "admin" || session?.user?.accessRoleSlug === "super-admin";
+
+  useEffect(() => {
+    api.getUserMetadata()
+      .then(meta => {
+        if (meta && Array.isArray(meta.teams)) {
+          setSystemSquads(meta.teams.map(t => t.name || t.slug).filter(Boolean));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const squadOptions = useMemo(() => {
+    const defaultList = ["Seals", "Bravo", "Balboa", "Briu", "Snipers", "Atlas"];
+    const set = new Set(defaultList);
+
+    systemSquads.forEach(s => set.add(s));
+
+    clients.forEach(c => {
+      const sq = c.squad || c.team || c.team_slug || c.squad_name || c.team_name;
+      if (sq) set.add(sq);
+    });
+
+    return Array.from(set).sort();
+  }, [clients, systemSquads]);
 
   const refreshClients = useCallback(() => {
     let alive = true;
@@ -283,7 +338,8 @@ export default function PageClients({ session }) {
         || (integrationFilter === "with-typebot" && bots > 0)
         || (integrationFilter === "without-typebot" && bots === 0);
 
-      const matchesSquad = squadFilter === "all" || client.squad === squadFilter;
+      const clientSquad = (client.squad || client.team || client.team_slug || client.squad_name || client.team_name || "").toLowerCase();
+      const matchesSquad = squadFilter === "all" || clientSquad === squadFilter.toLowerCase();
 
       return matchesQuery && matchesStatus && matchesIntegration && matchesSquad;
     });
@@ -564,13 +620,34 @@ export default function PageClients({ session }) {
             </div>
             {selectedTool === "n8n" && automations.length > 0 && (
               <div className="toolbar-actions toolbar-actions--compact">
-                <input className="search-input search-input--sm" placeholder="Filtrar automações..." value={automationQuery} onChange={(event) => setAutomationQuery(event.target.value)} />
-                <select className="editor-sidebar__select select--sm" value={automationStatus} onChange={(event) => setAutomationStatus(event.target.value)}>
-                  <option value="all">Todos</option>
-                  <option value="active">Ativas</option>
-                  <option value="inactive">Inativas</option>
-                  <option value="error">Com erro</option>
-                </select>
+                <div style={{ position: "relative" }}>
+                  <button className={`btn ${showAutoFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} onClick={() => setShowAutoFilters(!showAutoFilters)}>
+                    Filtros Avançados
+                  </button>
+                  {showAutoFilters && (
+                    <div className="filters-inline-float" style={{ right: 0, top: '100%', marginTop: 8 }}>
+                      <div className="g2">
+                        <div>
+                          <label className="editor-sidebar__label">Pesquisar</label>
+                          <input className="search-input search-input--sm" placeholder="Filtrar automações..." value={automationQuery} onChange={(event) => setAutomationQuery(event.target.value)} />
+                        </div>
+                        <div>
+                          <label className="editor-sidebar__label">Status</label>
+                          <select className="editor-sidebar__select select--sm" value={automationStatus} onChange={(event) => setAutomationStatus(event.target.value)}>
+                            <option value="all">Todos</option>
+                            <option value="active">Ativas</option>
+                            <option value="inactive">Inativas</option>
+                            <option value="error">Com erro</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="filters-inline-float__actions">
+                        <button className="btn btn--outline btn--sm" onClick={() => { setAutomationQuery(""); setAutomationStatus("all"); }}>Limpar Filtros</button>
+                        <button className="btn btn--primary btn--sm" onClick={() => setShowAutoFilters(false)}>Filtrar</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1029,130 +1106,120 @@ export default function PageClients({ session }) {
         </section>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div className="search-wrap" style={{ flex: '1 1 200px', minWidth: '160px', maxWidth: '320px' }}>
-            <span className="si"><Icons.Search /></span>
-            <input 
-              className="search-input" 
-              placeholder="Buscar cliente..." 
-              value={tempSearch} 
-              onChange={(event) => setTempSearch(event.target.value)} 
-              onKeyDown={(e) => { if (e.key === 'Enter') setQ(tempSearch); }}
-            />
-          </div>
-          
-          <button 
-            type="button" 
-            className="btn btn--primary btn--sm"
-            onClick={() => setQ(tempSearch)}
-            style={{ gap: '6px' }}
-          >
-            Pesquisar
-          </button>
-
-          <button 
-            type="button" 
-            className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
-            onClick={() => setShowFilters(!showFilters)}
-            style={{ gap: '6px' }}
-          >
-            Filtros Avançados
-          </button>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
+        <div className="search-wrap" style={{ flex: '1 1 200px', minWidth: '160px', maxWidth: '320px' }}>
+          <span className="si"><Icons.Search /></span>
+          <input 
+            className="search-input" 
+            placeholder="Buscar cliente..." 
+            value={tempSearch} 
+            onChange={(event) => setTempSearch(event.target.value)} 
+            onKeyDown={(e) => { if (e.key === 'Enter') setQ(tempSearch); }}
+          />
         </div>
+        
+        <button 
+          type="button" 
+          className="btn btn--primary btn--sm"
+          onClick={() => setQ(tempSearch)}
+          style={{ gap: '6px' }}
+        >
+          Pesquisar
+        </button>
+
+        <button 
+          type="button" 
+          className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
+          onClick={() => setShowFilters(!showFilters)}
+          style={{ gap: '6px' }}
+        >
+          Filtros Avançados
+        </button>
 
         {showFilters && (
-          <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            gap: '12px', 
-            marginTop: '4px', 
-            padding: '16px', 
-            background: 'var(--bg-secondary)', 
-            borderRadius: '12px', 
-            border: '1px solid var(--border)' 
-          }}>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <select
-                className="editor-sidebar__select select--sm"
-                value={tempStatus}
-                onChange={(e) => setTempStatus(e.target.value)}
-                style={{ minWidth: '140px', flex: '1 1 150px' }}
-              >
-                <option value="all">Todos os status</option>
-                <option value="active">Ativo</option>
-                <option value="inactive">Inativo</option>
-              </select>
-              <select
-                className="editor-sidebar__select select--sm"
-                value={tempIntegration}
-                onChange={(e) => setTempIntegration(e.target.value)}
-                style={{ minWidth: '160px', flex: '1 1 150px' }}
-              >
-                <option value="all">Todas as integrações</option>
-                <option value="with-n8n">Com Automação</option>
-                <option value="without-n8n">Sem Automação</option>
-                <option value="with-typebot">Com Bots</option>
-                <option value="without-typebot">Sem Bots</option>
-              </select>
-              <select
-                className="editor-sidebar__select select--sm"
-                value={tempSquad}
-                onChange={(e) => setTempSquad(e.target.value)}
-                style={{ minWidth: '140px', flex: '1 1 150px' }}
-              >
-                <option value="all">Todos os Squads</option>
-                {Array.from(new Set(clients.map(c => c.squad).filter(Boolean))).map(squad => (
-                  <option key={squad} value={squad}>{squad}</option>
-                ))}
-              </select>
-              <select
-                className="editor-sidebar__select select--sm"
-                value={tempSortBy}
-                onChange={(e) => setTempSortBy(e.target.value)}
-                style={{ minWidth: '140px', flex: '1 1 150px' }}
-              >
-                <option value="name">Ordenar: Nome</option>
-                <option value="automations">Mais automações</option>
-                <option value="bots">Mais bots</option>
-                <option value="status">Por status</option>
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '4px' }}>
-              <button 
-                type="button" 
-                className="btn btn--outline btn--sm text-danger" 
-                onClick={() => {
-                  setTempSearch("");
-                  setQ("");
-                  setTempStatus("all");
-                  setStatusFilter("all");
-                  setTempIntegration("all");
-                  setIntegrationFilter("all");
-                  setTempSquad("all");
-                  setSquadFilter("all");
-                  setTempSortBy("name");
-                  setSortBy("name");
-                  setSortOrder("asc");
-                }}
-                style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
-              >
-                Limpar Filtros
-              </button>
-              <button 
-                type="button" 
-                className="btn btn--primary btn--sm" 
-                onClick={() => {
-                  setQ(tempSearch);
-                  setStatusFilter(tempStatus);
-                  setIntegrationFilter(tempIntegration);
-                  setSquadFilter(tempSquad);
-                  setSortBy(tempSortBy);
-                }}
-              >
-                Filtrar
-              </button>
-            </div>
+          <div className="filters-inline-float">
+            <select
+              className="editor-sidebar__select select--sm"
+              value={tempStatus}
+              onChange={(e) => setTempStatus(e.target.value)}
+              style={{ minWidth: '140px' }}
+            >
+              <option value="all">Todos os status</option>
+              <option value="active">Ativo</option>
+              <option value="inactive">Inativo</option>
+            </select>
+
+            <select
+              className="editor-sidebar__select select--sm"
+              value={tempIntegration}
+              onChange={(e) => setTempIntegration(e.target.value)}
+              style={{ minWidth: '160px' }}
+            >
+              <option value="all">Todas as integrações</option>
+              <option value="with-n8n">Com Automação</option>
+              <option value="without-n8n">Sem Automação</option>
+              <option value="with-typebot">Com Bots</option>
+              <option value="without-typebot">Sem Bots</option>
+            </select>
+
+            <select
+              className="editor-sidebar__select select--sm"
+              value={tempSquad}
+              onChange={(e) => setTempSquad(e.target.value)}
+              style={{ minWidth: '140px' }}
+            >
+              <option value="all">Todos os Squads</option>
+              {squadOptions.map(squad => (
+                <option key={squad} value={squad}>{squad}</option>
+              ))}
+            </select>
+
+            <select
+              className="editor-sidebar__select select--sm"
+              value={tempSortBy}
+              onChange={(e) => setTempSortBy(e.target.value)}
+              style={{ minWidth: '140px' }}
+            >
+              <option value="name">Ordenar: Nome</option>
+              <option value="automations">Mais automações</option>
+              <option value="bots">Mais bots</option>
+              <option value="status">Por status</option>
+            </select>
+
+            <button 
+              type="button" 
+              className="btn btn--outline btn--sm text-danger" 
+              onClick={() => {
+                setTempSearch("");
+                setQ("");
+                setTempStatus("all");
+                setStatusFilter("all");
+                setTempIntegration("all");
+                setIntegrationFilter("all");
+                setTempSquad("all");
+                setSquadFilter("all");
+                setTempSortBy("name");
+                setSortBy("name");
+                setSortOrder("asc");
+              }}
+              style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
+            >
+              Limpar Filtros
+            </button>
+
+            <button 
+              type="button" 
+              className="btn btn--primary btn--sm" 
+              onClick={() => {
+                setQ(tempSearch);
+                setStatusFilter(tempStatus);
+                setIntegrationFilter(tempIntegration);
+                setSquadFilter(tempSquad);
+                setSortBy(tempSortBy);
+              }}
+            >
+              Filtrar
+            </button>
           </div>
         )}
       </div>

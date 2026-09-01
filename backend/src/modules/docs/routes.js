@@ -113,13 +113,45 @@ docRoutes.get('/templates', requirePermission('docs.view'), asyncHandler(async (
 }));
 
 docRoutes.get('/tags', requirePermission('docs.view'), asyncHandler(async (req, res) => {
-  const { rows } = await query(
+  let { rows } = await query(
     `SELECT id, name, color, created_at
        FROM tags
       WHERE organization_id = ?
       ORDER BY name ASC`,
     [req.user.organization_id]
   );
+
+  if (rows.length === 0) {
+    const defaultTags = [
+      { name: "GT", color: "#e92e30" },
+      { name: "Gestor de Projetos", color: "#3b82f6" },
+      { name: "Vendas / Comercial", color: "#10b981" },
+      { name: "Marketing", color: "#f59e0b" },
+      { name: "Financeiro", color: "#8b5cf6" },
+      { name: "Tecnologia", color: "#06b6d4" },
+      { name: "Operações", color: "#ec4899" },
+      { name: "Squad Seals", color: "#6366f1" },
+      { name: "Squad Bravo", color: "#3b82f6" },
+      { name: "Squad Balboa", color: "#f97316" },
+      { name: "Squad Briu", color: "#84cc16" },
+      { name: "Squad Snipers", color: "#ef4444" },
+      { name: "Squad Atlas", color: "#14b8a6" }
+    ];
+
+    for (const tag of defaultTags) {
+      await query(
+        `INSERT INTO tags (id, organization_id, name, color) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE color = VALUES(color)`,
+        [createId(), req.user.organization_id, tag.name, tag.color]
+      );
+    }
+
+    const seeded = await query(
+      `SELECT id, name, color, created_at FROM tags WHERE organization_id = ? ORDER BY name ASC`,
+      [req.user.organization_id]
+    );
+    rows = seeded.rows;
+  }
+
   ok(res, { data: rows });
 }));
 

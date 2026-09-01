@@ -715,10 +715,26 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
   );
 }
 
+const DEFAULT_DOCUMENT_TAGS = [
+  { name: "GT", color: "#e92e30" },
+  { name: "Gestor de Projetos", color: "#3b82f6" },
+  { name: "Vendas / Comercial", color: "#10b981" },
+  { name: "Marketing", color: "#f59e0b" },
+  { name: "Financeiro", color: "#8b5cf6" },
+  { name: "Tecnologia", color: "#06b6d4" },
+  { name: "Operações", color: "#ec4899" },
+  { name: "Squad Seals", color: "#6366f1" },
+  { name: "Squad Bravo", color: "#3b82f6" },
+  { name: "Squad Balboa", color: "#f97316" },
+  { name: "Squad Briu", color: "#84cc16" },
+  { name: "Squad Snipers", color: "#ef4444" },
+  { name: "Squad Atlas", color: "#14b8a6" }
+];
+
 // ── DOCUMENTS PAGE ──
 export default function PageDocuments({ session }) {
   const [docs, setDocs] = useState([]);
-  const [tags, setTags] = useState([]);
+  const [tags, setTags] = useState(DEFAULT_DOCUMENT_TAGS);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -743,7 +759,13 @@ export default function PageDocuments({ session }) {
 
   const isAdmin = session?.user?.accessRoleSlug === "admin" || session?.user?.accessRoleSlug === "super-admin";
 
-  const getTagColor = (tagName) => { const tag = tags.find(t => t.name === tagName); return tag ? tag.color : "#737373"; };
+  const getTagColor = (tagName) => {
+    if (!tagName) return "#737373";
+    const tag = tags.find(t => t && t.name.toLowerCase() === tagName.toLowerCase());
+    if (tag && tag.color) return tag.color;
+    const def = DEFAULT_DOCUMENT_TAGS.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+    return def ? def.color : "#737373";
+  };
   const publishedCount = useMemo(() => docs.filter(d => d.status === "published").length, [docs]);
   const draftCount = useMemo(() => docs.filter(d => d.status === "draft").length, [docs]);
 
@@ -784,8 +806,16 @@ export default function PageDocuments({ session }) {
 
   useEffect(() => {
     Promise.all([api.getDocs(), api.getTags(), api.getTemplates()])
-      .then(([d, t, tp]) => { setDocs(Array.isArray(d) ? d : []); setTags(Array.isArray(t) ? t : []); setTemplates(Array.isArray(tp) ? tp : []); })
-      .catch(() => { setDocs([]); setTags([]); setTemplates([]); })
+      .then(([d, t, tp]) => { 
+        setDocs(Array.isArray(d) ? d : []); 
+        const fetchedTags = Array.isArray(t) ? t : [];
+        const tagMap = new Map();
+        DEFAULT_DOCUMENT_TAGS.forEach(tag => tagMap.set(tag.name.toLowerCase(), tag));
+        fetchedTags.forEach(tag => { if (tag && tag.name) tagMap.set(tag.name.toLowerCase(), tag); });
+        setTags(Array.from(tagMap.values()));
+        setTemplates(Array.isArray(tp) ? tp : []); 
+      })
+      .catch(() => { setDocs([]); setTags(DEFAULT_DOCUMENT_TAGS); setTemplates([]); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -836,7 +866,13 @@ export default function PageDocuments({ session }) {
   const handleSaveDoc = async (changes) => { try { const updated = await api.updateDoc(editingDoc.id, changes); setDocs(prev => prev.map(d => d.id === editingDoc.id ? updated : d)); setEditingDoc(updated); } catch (e) { console.error(e); alert("Erro ao salvar documento: " + (e.message || "Erro no servidor.")); } };
   const handleDeleteDoc = async (id) => { try { await api.deleteDoc(id); setDocs(prev => prev.filter(d => d.id !== id)); setEditingDoc(null); } catch (e) { console.error(e); alert("Erro ao excluir documento: " + (e.message || "Verifique se possui permissão ou se o documento existe no banco de dados.")); } };
 
-  const usedTags = useMemo(() => { const set = new Set(); docs.forEach(d => { if (Array.isArray(d.tags)) { d.tags.forEach(t => { if (t) set.add(t); }); } }); return Array.from(set).sort(); }, [docs]);
+  const usedTags = useMemo(() => {
+    const set = new Set();
+    DEFAULT_DOCUMENT_TAGS.forEach(t => set.add(t.name));
+    (tags || []).forEach(t => { if (t && t.name) set.add(t.name); });
+    docs.forEach(d => { if (Array.isArray(d.tags)) { d.tags.forEach(t => { if (t) set.add(t); }); } });
+    return Array.from(set).sort();
+  }, [docs, tags]);
 
   if (editingDoc) {
     return (
@@ -928,78 +964,65 @@ export default function PageDocuments({ session }) {
             </section>
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <div className="doc-search-wrap" style={{ flex: 1, minWidth: '200px', maxWidth: '320px' }}>
-                <span className="si"><Icons.Search /></span>
-                <input 
-                  className="doc-search" 
-                  placeholder="Buscar por título, conteúdo ou tag..." 
-                  value={tempSearch} 
-                  onChange={e => setTempSearch(e.target.value)} 
-                  onKeyDown={e => { if (e.key === 'Enter') setSearchQuery(tempSearch); }}
-                />
-              </div>
-              
-              <button 
-                type="button" 
-                className="btn btn--primary btn--sm" 
-                onClick={() => setSearchQuery(tempSearch)}
-              >
-                Pesquisar
-              </button>
-
-              <button 
-                type="button" 
-                className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                Filtros Avançados
-              </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: '24px' }}>
+            <div className="doc-search-wrap" style={{ flex: 1, minWidth: '200px', maxWidth: '320px' }}>
+              <span className="si"><Icons.Search /></span>
+              <input 
+                className="doc-search" 
+                placeholder="Buscar por título, conteúdo ou tag..." 
+                value={tempSearch} 
+                onChange={e => setTempSearch(e.target.value)} 
+                onKeyDown={e => { if (e.key === 'Enter') setSearchQuery(tempSearch); }}
+              />
             </div>
+            
+            <button 
+              type="button" 
+              className="btn btn--primary btn--sm" 
+              onClick={() => setSearchQuery(tempSearch)}
+            >
+              Pesquisar
+            </button>
+
+            <button 
+              type="button" 
+              className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              Filtros Avançados
+            </button>
 
             {showFilters && (
-              <div style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                gap: '12px', 
-                marginTop: '4px', 
-                padding: '16px', 
-                background: 'var(--bg-secondary)', 
-                borderRadius: '12px', 
-                border: '1px solid var(--border)' 
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                  <div className="doc-controls" style={{ display: 'flex', gap: '8px' }}>
-                    <button 
-                      className={`sort-btn ${tempSortBy === "date" ? "sort-btn--active" : ""}`} 
-                      onClick={() => {
-                        setTempSortBy("date");
-                        setTempSortDir(prev => prev === "asc" ? "desc" : "asc");
-                      }}
-                    >
-                      <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                      Data {tempSortBy === "date" ? (tempSortDir === "desc" ? "↓" : "↑") : ""}
-                    </button>
-                    <button 
-                      className={`sort-btn ${tempSortBy === "name" ? "sort-btn--active" : ""}`} 
-                      onClick={() => {
-                        setTempSortBy("name");
-                        setTempSortDir(prev => prev === "asc" ? "desc" : "asc");
-                      }}
-                    >
-                      <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
-                      Nome {tempSortBy === "name" ? (tempSortDir === "asc" ? "A→Z" : "Z→A") : ""}
-                    </button>
-                  </div>
-                  <div className="view-toggle">
-                    <button className={`view-toggle__btn ${viewMode === "grid" ? "view-toggle__btn--active" : ""}`} onClick={() => setViewMode("grid")} title="Galeria">
-                      <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>
-                    </button>
-                    <button className={`view-toggle__btn ${viewMode === "list" ? "view-toggle__btn--active" : ""}`} onClick={() => setViewMode("list")} title="Lista">
-                      <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-                    </button>
-                  </div>
+              <div className="filters-inline-float">
+                <div className="doc-controls" style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    className={`sort-btn ${tempSortBy === "date" ? "sort-btn--active" : ""}`} 
+                    onClick={() => {
+                      setTempSortBy("date");
+                      setTempSortDir(prev => prev === "asc" ? "desc" : "asc");
+                    }}
+                  >
+                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    Data {tempSortBy === "date" ? (tempSortDir === "desc" ? "↓" : "↑") : ""}
+                  </button>
+                  <button 
+                    className={`sort-btn ${tempSortBy === "name" ? "sort-btn--active" : ""}`} 
+                    onClick={() => {
+                      setTempSortBy("name");
+                      setTempSortDir(prev => prev === "asc" ? "desc" : "asc");
+                    }}
+                  >
+                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+                    Nome {tempSortBy === "name" ? (tempSortDir === "asc" ? "A→Z" : "Z→A") : ""}
+                  </button>
+                </div>
+                <div className="view-toggle">
+                  <button className={`view-toggle__btn ${viewMode === "grid" ? "view-toggle__btn--active" : ""}`} onClick={() => setViewMode("grid")} title="Galeria">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>
+                  </button>
+                  <button className={`view-toggle__btn ${viewMode === "list" ? "view-toggle__btn--active" : ""}`} onClick={() => setViewMode("list")} title="Lista">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                  </button>
                 </div>
 
                 <div className="tag-filter" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
@@ -1022,35 +1045,33 @@ export default function PageDocuments({ session }) {
                   )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '4px', width: '100%' }}>
-                  <button 
-                    type="button" 
-                    className="btn btn--outline btn--sm text-danger" 
-                    onClick={() => {
-                      setTempSearch("");
-                      setSearchQuery("");
-                      setSelectedTags([]);
-                      setTempSortBy("date");
-                      setSortBy("date");
-                      setTempSortDir("desc");
-                      setSortDir("desc");
-                    }}
-                    style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
-                  >
-                    Limpar Filtros
-                  </button>
-                  <button 
-                    type="button" 
-                    className="btn btn--primary btn--sm" 
-                    onClick={() => {
-                      setSearchQuery(tempSearch);
-                      setSortBy(tempSortBy);
-                      setSortDir(tempSortDir);
-                    }}
-                  >
-                    Filtrar
-                  </button>
-                </div>
+                <button 
+                  type="button" 
+                  className="btn btn--outline btn--sm text-danger" 
+                  onClick={() => {
+                    setTempSearch("");
+                    setSearchQuery("");
+                    setSelectedTags([]);
+                    setTempSortBy("date");
+                    setSortBy("date");
+                    setTempSortDir("desc");
+                    setSortDir("desc");
+                  }}
+                  style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
+                >
+                  Limpar Filtros
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn--primary btn--sm" 
+                  onClick={() => {
+                    setSearchQuery(tempSearch);
+                    setSortBy(tempSortBy);
+                    setSortDir(tempSortDir);
+                  }}
+                >
+                  Filtrar
+                </button>
               </div>
             )}
           </div>

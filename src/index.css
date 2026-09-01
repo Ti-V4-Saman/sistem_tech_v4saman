@@ -525,6 +525,15 @@ p{color:var(--text-secondary);line-height:1.6}
 @keyframes docSlideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideDown{from{opacity:0;transform:translateY(-8px);max-height:0}to{opacity:1;transform:translateY(0);max-height:2000px}}
+@keyframes floatUpFilters{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+.filters-inline-float {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  animation: floatUpFilters 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
 
 /* Color picker popup */
 .color-picker-popup{
