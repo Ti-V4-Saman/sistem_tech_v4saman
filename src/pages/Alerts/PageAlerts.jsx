@@ -244,7 +244,7 @@ export default function PageAlerts({ permissions = [] }) {
       {/* Filtros Toolbar Premium */}
       {!loading && !error && activeTab === "active" && (
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '24px' }}>
-          <div className="search-wrap" style={{ flex: 1, minWidth: '200px', maxWidth: '320px' }}>
+          <div className="search-wrap" style={{ flex: 1, minWidth: '200px', maxWidth: '300px' }}>
             <span className="si" style={{ paddingLeft: 12 }}>🔍</span>
             <input
               type="text"
@@ -269,17 +269,18 @@ export default function PageAlerts({ permissions = [] }) {
             type="button" 
             className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
             onClick={() => setShowFilters(!showFilters)}
+            style={{ whiteSpace: 'nowrap' }}
           >
-            Filtros Avançados
+            Filtros Avançados {showFilters ? '▲' : '▼'}
           </button>
 
           {showFilters && (
-            <div className="filters-inline-float">
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', animation: 'floatUpFilters 0.2s ease-out' }}>
               <select
                 className="editor-sidebar__select select--sm"
                 value={tempUrgency}
                 onChange={(e) => setTempUrgency(e.target.value)}
-                style={{ minWidth: '150px' }}
+                style={{ minWidth: '140px' }}
               >
                 <option value="all">Todas as Urgências</option>
                 <option value="low">Baixa</option>
@@ -291,7 +292,7 @@ export default function PageAlerts({ permissions = [] }) {
                 className="editor-sidebar__select select--sm"
                 value={tempSortBy}
                 onChange={(e) => setTempSortBy(e.target.value)}
-                style={{ minWidth: '150px' }}
+                style={{ minWidth: '140px' }}
               >
                 <option value="recent">Mais recentes</option>
                 <option value="oldest">Mais antigos</option>
@@ -310,9 +311,9 @@ export default function PageAlerts({ permissions = [] }) {
                   setTempSortBy("recent");
                   setSortBy("recent");
                 }}
-                style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
+                style={{ color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)', whiteSpace: 'nowrap' }}
               >
-                Limpar Filtros
+                Limpar
               </button>
               <button 
                 type="button" 
@@ -322,8 +323,9 @@ export default function PageAlerts({ permissions = [] }) {
                   setUrgencyFilter(tempUrgency);
                   setSortBy(tempSortBy);
                 }}
+                style={{ whiteSpace: 'nowrap' }}
               >
-                Filtrar
+                Aplicar
               </button>
             </div>
           )}
@@ -384,7 +386,7 @@ export default function PageAlerts({ permissions = [] }) {
                       </td>
                       <td><strong style={{ fontSize: '13px' }}>{alert.client}</strong></td>
                       <td>{getUrgencyBadge(alert.urgency)}</td>
-                      <td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
                         <span 
                           className="badge badge--danger" 
                           style={{ 
@@ -394,7 +396,8 @@ export default function PageAlerts({ permissions = [] }) {
                             padding: '6px 12px', 
                             borderRadius: '8px', 
                             fontWeight: 600,
-                            fontSize: '12px'
+                            fontSize: '12px',
+                            whiteSpace: 'nowrap'
                           }}
                         >
                           {Icons.AlertTriangle && <Icons.AlertTriangle style={{ width: 13, height: 13 }} />}
@@ -404,7 +407,7 @@ export default function PageAlerts({ permissions = [] }) {
                       </td>
                       <td className="muted-cell" style={{ whiteSpace: 'nowrap', fontSize: '12px' }}>{formatDateTime(alert.occurred_at)}</td>
                       {canManage && (
-                        <td style={{ textAlign: "right" }}>
+                        <td style={{ textAlign: "right", whiteSpace: 'nowrap' }}>
                           <button 
                             type="button"
                             className="btn btn--outline btn--sm" 
@@ -430,7 +433,7 @@ export default function PageAlerts({ permissions = [] }) {
                                 Histórico de Ocorrências ({alert.occurrence_count})
                               </span>
                               <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                Clique em uma ocorrência para acessar o log externo correspondente
+                                Clique em uma ocorrência para acessar a execução no n8n
                               </span>
                             </div>
 
@@ -445,7 +448,24 @@ export default function PageAlerts({ permissions = [] }) {
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 {events.map((evt, idx) => {
-                                  const targetUrl = evt.external_run_id || evt.automation_url || alert.automation_url;
+                                  const n8nBaseUrl = (import.meta.env.VITE_N8N_BASE_URL || "https://n8ops.v4saman.com").replace(/\/+$/, "");
+                                  const runId = evt.external_run_id || evt.automation_run_id;
+                                  const workflowUrl = evt.automation_url || alert.automation_url;
+                                  
+                                  let targetUrl = null;
+                                  if (runId) {
+                                    const cleanRunId = String(runId).trim();
+                                    if (cleanRunId.startsWith('http://') || cleanRunId.startsWith('https://')) {
+                                      targetUrl = cleanRunId;
+                                    } else if (workflowUrl && workflowUrl.includes('/workflow/')) {
+                                      targetUrl = `${workflowUrl.replace(/\/+$/, '')}/executions/${cleanRunId}`;
+                                    } else {
+                                      targetUrl = `${n8nBaseUrl}/execution/${cleanRunId}`;
+                                    }
+                                  } else {
+                                    targetUrl = workflowUrl || null;
+                                  }
+
                                   return (
                                     <div
                                       key={evt.id || idx}
@@ -474,7 +494,7 @@ export default function PageAlerts({ permissions = [] }) {
                                             {evt.error_message || alert.message || 'Falha de execução na automação'}
                                           </div>
                                           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <span>Execução: <code style={{ fontSize: '11px', padding: '2px 6px', background: 'var(--bg-secondary)', borderRadius: '4px', border: '1px solid var(--border)' }}>{evt.automation_run_id || 'n/a'}</code></span>
+                                            <span>ID Execução: <code style={{ fontSize: '11px', padding: '2px 6px', background: 'var(--bg-secondary)', borderRadius: '4px', border: '1px solid var(--border)' }}>{evt.automation_run_id || evt.external_run_id || 'n/a'}</code></span>
                                             <span>•</span>
                                             <span>{formatDateTime(evt.occurred_at || alert.occurred_at)}</span>
                                           </div>
@@ -484,7 +504,7 @@ export default function PageAlerts({ permissions = [] }) {
                                       {targetUrl && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, padding: '6px 12px', borderRadius: '6px', background: 'rgba(233,46,48,0.08)', color: 'var(--color-primary)' }}>
                                           <span style={{ fontSize: '12px', fontWeight: 600 }}>
-                                            Abrir Log
+                                            Abrir no n8n
                                           </span>
                                           {Icons.ExternalLink && <Icons.ExternalLink style={{ width: 14, height: 14 }} />}
                                         </div>
@@ -528,7 +548,7 @@ export default function PageAlerts({ permissions = [] }) {
           <div 
             style={{ 
               width: '100%', 
-              maxWidth: '460px', 
+              maxWidth: '440px', 
               background: 'var(--bg-card)', 
               border: '1px solid var(--border)', 
               borderRadius: '16px', 
@@ -540,7 +560,7 @@ export default function PageAlerts({ permissions = [] }) {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(233,46,48,0.12)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icons.CheckCircle style={{ width: 22, height: 22 }} />
+                {Icons.CheckCircle && <Icons.CheckCircle style={{ width: 22, height: 22 }} />}
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -553,7 +573,7 @@ export default function PageAlerts({ permissions = [] }) {
             </div>
 
             <p style={{ fontSize: '14px', color: 'var(--text-primary)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
-              Tem certeza que deseja resolver o alerta <strong>"{alertToResolve.title}"</strong> ({alertToResolve.client})?
+              Deseja realmente marcar como resolvido o alerta de <strong>{alertToResolve.client}</strong> (<em>"{alertToResolve.title}"</em>)?
             </p>
 
             <div style={{ marginBottom: '20px' }}>
@@ -585,7 +605,7 @@ export default function PageAlerts({ permissions = [] }) {
                 onClick={confirmResolveAlert}
                 disabled={resolving}
               >
-                {resolving ? "Resolvendo..." : "Confirmar Resolução"}
+                {resolving ? "Resolvendo..." : "Sim, Resolver"}
               </button>
             </div>
           </div>

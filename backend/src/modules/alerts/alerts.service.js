@@ -48,17 +48,6 @@ export async function processAutomationRunForAlerts({
 
   if (alertsQuery.rows.length > 0) {
     alertId = alertsQuery.rows[0].id;
-    // Update existing
-    await query(
-      `UPDATE operational_alerts 
-       SET occurrence_count = occurrence_count + 1, 
-           last_seen_at = GREATEST(last_seen_at, ?),
-           last_automation_run_id = ?,
-           last_error_message = ?,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [mysqlOccurredAt, automationRunId, errorMessage || null, alertId]
-    );
   } else {
     // Create new alert
     alertId = createId();
@@ -71,19 +60,14 @@ export async function processAutomationRunForAlerts({
       );
     } catch (err) {
       if (err.code === 'ER_DUP_ENTRY') {
-        // Someone else created it concurrently. Find it and update.
         const concurrentQuery = await query(
           `SELECT id FROM operational_alerts WHERE organization_id = ? AND automation_id = ? AND status = 'open' LIMIT 1`,
           [organizationId, automationId]
         );
         if (concurrentQuery.rows[0]) {
           alertId = concurrentQuery.rows[0].id;
-          await query(
-            `UPDATE operational_alerts SET occurrence_count = occurrence_count + 1, last_seen_at = GREATEST(last_seen_at, ?), last_automation_run_id = ?, last_error_message = ? WHERE id = ?`,
-            [mysqlOccurredAt, automationRunId, errorMessage || null, alertId]
-          );
         } else {
-          return; // Giving up, should be rare
+          return;
         }
       } else {
         throw err;
@@ -91,7 +75,7 @@ export async function processAutomationRunForAlerts({
     }
   }
 
-  // 3. Insert specific event
+  // 3. Insert specific event (only update occurrence count if this is a NEW distinct error event)
   try {
     await query(
       `INSERT INTO operational_alert_events 
@@ -99,9 +83,20 @@ export async function processAutomationRunForAlerts({
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [createId(), organizationId, alertId, automationRunId, externalRunId || null, errorMessage || null, mysqlOccurredAt]
     );
+
+    // Event inserted successfully -> Update alert metadata and accurate event count
+    await query(
+      `UPDATE operational_alerts 
+       SET occurrence_count = (SELECT COUNT(*) FROM operational_alert_events WHERE alert_id = ?),
+           last_seen_at = GREATEST(last_seen_at, ?),
+           last_automation_run_id = ?,
+           last_error_message = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [alertId, mysqlOccurredAt, automationRunId, errorMessage || null, alertId]
+    );
   } catch (err) {
-    // If ER_DUP_ENTRY, it means this run was already counted (unique key on organization_id, automation_run_id).
-    // We can just ignore it to avoid double-counting events.
+    // If ER_DUP_ENTRY, this run was already processed before. Do not increment count.
     if (err.code !== 'ER_DUP_ENTRY') throw err;
   }
 }

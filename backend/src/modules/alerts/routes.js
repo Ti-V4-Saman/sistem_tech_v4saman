@@ -16,13 +16,17 @@ alertRoutes.get('/', requirePermission('alerts.view'), asyncHandler(async (req, 
       c.name AS client,
       a.name AS title,
       oa.last_seen_at AS occurred_at,
-      CONCAT(oa.occurrence_count, ' erro(s) registrado(s). Última falha: ', COALESCE(oa.last_error_message, 'Sem detalhes adicionais.')) AS message,
-      oa.occurrence_count,
+      CONCAT(
+        COALESCE(NULLIF((SELECT COUNT(*) FROM operational_alert_events WHERE alert_id = oa.id), 0), 1),
+        ' erro(s) registrado(s). Última falha: ',
+        COALESCE(oa.last_error_message, 'Sem detalhes adicionais.')
+      ) AS message,
+      COALESCE(NULLIF((SELECT COUNT(*) FROM operational_alert_events WHERE alert_id = oa.id), 0), 1) AS occurrence_count,
       a.url AS automation_url,
       CASE 
-        WHEN oa.occurrence_count = 1 THEN 'low'
-        WHEN oa.occurrence_count BETWEEN 2 AND 3 THEN 'medium'
-        WHEN oa.occurrence_count BETWEEN 4 AND 5 THEN 'high'
+        WHEN COALESCE(NULLIF((SELECT COUNT(*) FROM operational_alert_events WHERE alert_id = oa.id), 0), 1) = 1 THEN 'low'
+        WHEN COALESCE(NULLIF((SELECT COUNT(*) FROM operational_alert_events WHERE alert_id = oa.id), 0), 0) BETWEEN 2 AND 3 THEN 'medium'
+        WHEN COALESCE(NULLIF((SELECT COUNT(*) FROM operational_alert_events WHERE alert_id = oa.id), 0), 0) BETWEEN 4 AND 5 THEN 'high'
         ELSE 'urgent'
       END AS urgency
      FROM operational_alerts oa

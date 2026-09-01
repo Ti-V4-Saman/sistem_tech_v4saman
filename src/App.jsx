@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useEffect } from "react";
+import { Routes, Route, useNavigate, useLocation, Link } from "react-router-dom";
 import { api } from "./services/api";
 import { Icons } from "./icons/Icons";
 import { LoadingSpinner } from "./components/ui/LoadingSpinner";
@@ -20,18 +21,29 @@ import LoginScreen from "./pages/Login/LoginScreen";
 import { CommandPalette } from "./components/app/CommandPalette";
 
 const NAV = [
-  { id: "home", label: "Início", icon: <Icons.Dashboard /> },
-  { id: "dashboard", label: "Visão Geral", icon: () => <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" /></svg> },
-  { id: "clients", label: "Clientes", icon: <Icons.Users /> },
-  { id: "docs", label: "Documentos", icon: <Icons.Doc /> },
-  { id: "telephony", label: "Telefonia", icon: <Icons.Phone />, isAdminOnly: true },
-  { id: "flows", label: "Modelos de Fluxos", icon: <Icons.Zap />, isAdminOnly: true, isDev: true },
-  { id: "alerts", label: "Alertas", icon: <Icons.Bell />, isAdminOnly: true },
-  { id: "users", label: "Usuários", icon: <Icons.Lock />, isAdminOnly: true },
+  { id: "home", path: "/", label: "Início", icon: <Icons.Dashboard /> },
+  { id: "dashboard", path: "/dashboard", label: "Visão Geral", icon: () => <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" /></svg> },
+  { id: "clients", path: "/clientes", label: "Clientes", icon: <Icons.Users /> },
+  { id: "docs", path: "/documentos", label: "Documentos", icon: <Icons.Doc /> },
+  { id: "telephony", path: "/telefonia", label: "Telefonia", icon: <Icons.Phone />, isAdminOnly: true },
+  { id: "flows", path: "/fluxos", label: "Modelos de Fluxos", icon: <Icons.Zap />, isAdminOnly: true, isDev: true },
+  { id: "alerts", path: "/alertas", label: "Alertas", icon: <Icons.Bell />, isAdminOnly: true },
+  { id: "users", path: "/usuarios", label: "Usuários", icon: <Icons.Lock />, isAdminOnly: true },
 ];
 
 export default function App() {
-  const [page, setPage] = useState("home");
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const getCurrentPageId = () => {
+    const current = NAV.find(item => item.path === location.pathname);
+    if (current) return current.id;
+    if (location.pathname === "/configuracoes") return "settings";
+    if (location.pathname === "/perfil") return "profile";
+    return "home";
+  };
+  const page = getCurrentPageId();
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [session, setSession] = useState(() => api.getStoredSession());
   const [checkingSession, setCheckingSession] = useState(Boolean(api.getStoredSession()?.accessToken));
@@ -119,7 +131,14 @@ export default function App() {
   const toggleTheme = () => setTheme(prev => prev === "dark" ? "light" : "dark");
 
   const navigateTo = (targetPage) => {
-    setPage(targetPage);
+    let targetPath = "/";
+    const navItem = NAV.find(item => item.id === targetPage);
+    if (navItem) targetPath = navItem.path;
+    else if (targetPage === "settings") targetPath = "/configuracoes";
+    else if (targetPage === "profile") targetPath = "/perfil";
+    else if (targetPage === "home") targetPath = "/";
+
+    navigate(targetPath);
     window.dispatchEvent(new CustomEvent("app:reset-page", { detail: targetPage }));
   };
 
@@ -148,22 +167,7 @@ export default function App() {
     }
   };
 
-  const renderPage = () => {
-    switch (page) {
-      case "home": return <PageHome session={session} setPage={navigateTo} />;
-      case "dashboard": return <PageDashboard setPage={navigateTo} isAdmin={isAdmin} />;
-      case "clients": return <PageClients session={session} />;
-      case "docs": return <PageDocuments session={session} />;
-      case "telephony": return isSuperAdmin ? <PageTelephony permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>;
-      case "flows": return isSuperAdmin ? <PageFlowTemplates permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>;
-      case "alerts": return isSuperAdmin ? <PageAlerts permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>;
-      case "users": return isSuperAdmin ? <PageUsers /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>;
-      case "profile": return <PageProfile session={session} onSessionUpdate={setSession} />;
-      case "settings": return isSuperAdmin ? <PageSettings session={session} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>;
-
-      default: return <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Módulo "{page}" está em desenvolvimento.</div>;
-    }
-  };
+  // renderPage logic replaced by React Router Routes below
 
   if (checkingSession) return <LoadingSpinner />;
   if (!session?.accessToken) return <LoginScreen onLogin={setSession} theme={theme} onToggleTheme={toggleTheme} />;
@@ -186,10 +190,12 @@ export default function App() {
             }).map((item, i) => {
               if (item.isSection) return <div key={`sec-${i}`} className="nav-section-label">{item.label}</div>;
               return (
-                <button
+                <Link
                   key={item.id}
+                  to={item.path}
                   className={`nav-item ${page === item.id ? 'nav-item--active' : ''}`}
-                  onClick={() => navigateTo(item.id)}
+                  onClick={() => window.dispatchEvent(new CustomEvent("app:reset-page", { detail: item.id }))}
+                  style={{ textDecoration: 'none', display: 'flex' }}
                 >
                   <span className="nav-item__icon">{typeof item.icon === 'function' ? item.icon() : item.icon}</span>
                   <span className="nav-item__label">{item.label}</span>
@@ -197,25 +203,25 @@ export default function App() {
                     {item.isDev && <span className="nav-item__dev-icon" title="Em desenvolvimento"><Icons.AlertTriangle /></span>}
                     {item.isAdminOnly && <span className="nav-item__lock-icon" title="Acesso restrito para Administrador"><Icons.Lock /></span>}
                   </div>
-                </button>
+                </Link>
               );
             })}
           </nav>
           <div className="sidebar__footer" style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "8px" }}>
             {isSuperAdmin && (
-              <button className={`nav-item ${page === 'settings' ? 'nav-item--active' : ''}`} onClick={() => navigateTo('settings')} style={{ width: '100%', textAlign: 'left', margin: 0 }}>
+              <Link to="/configuracoes" className={`nav-item ${page === 'settings' ? 'nav-item--active' : ''}`} onClick={() => window.dispatchEvent(new CustomEvent("app:reset-page", { detail: "settings" }))} style={{ width: '100%', textAlign: 'left', margin: 0, textDecoration: 'none', display: 'flex' }}>
                 <span className="nav-item__icon"><Icons.Settings /></span>
                 <span className="nav-item__label">Administrativa</span>
                 <div className="nav-item__side">
                   <span className="nav-item__lock-icon" title="Acesso restrito para Administrador"><Icons.Lock /></span>
                 </div>
-              </button>
+              </Link>
             )}
 
-            <button className={`nav-item ${page === 'profile' ? 'nav-item--active' : ''}`} onClick={() => navigateTo('profile')} style={{ width: '100%', textAlign: 'left', margin: 0 }}>
+            <Link to="/perfil" className={`nav-item ${page === 'profile' ? 'nav-item--active' : ''}`} onClick={() => window.dispatchEvent(new CustomEvent("app:reset-page", { detail: "profile" }))} style={{ width: '100%', textAlign: 'left', margin: 0, textDecoration: 'none', display: 'flex' }}>
               <span className="nav-item__icon"><Icons.Users /></span>
               <span className="nav-item__label">Sua Conta</span>
-            </button>
+            </Link>
             <button
               className="nav-item"
               onClick={handleLogout}
@@ -444,7 +450,19 @@ export default function App() {
         <main className="main-content">
           <div className="content-wrapper">
             <Suspense fallback={<LoadingSpinner />}>
-              {renderPage()}
+              <Routes>
+                <Route path="/" element={<PageHome session={session} setPage={navigateTo} />} />
+                <Route path="/dashboard" element={<PageDashboard setPage={navigateTo} isAdmin={isAdmin} />} />
+                <Route path="/clientes" element={<PageClients session={session} />} />
+                <Route path="/documentos" element={<PageDocuments session={session} />} />
+                <Route path="/telefonia" element={isSuperAdmin ? <PageTelephony permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                <Route path="/fluxos" element={isSuperAdmin ? <PageFlowTemplates permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                <Route path="/alertas" element={isSuperAdmin ? <PageAlerts permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                <Route path="/usuarios" element={isSuperAdmin ? <PageUsers /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                <Route path="/perfil" element={<PageProfile session={session} onSessionUpdate={setSession} />} />
+                <Route path="/configuracoes" element={isSuperAdmin ? <PageSettings session={session} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                <Route path="*" element={<div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Página não encontrada.</div>} />
+              </Routes>
             </Suspense>
           </div>
         </main>
