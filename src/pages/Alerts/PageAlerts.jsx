@@ -351,36 +351,58 @@ export default function PageAlerts({ permissions = [] }) {
             <tbody>
               {processedAlerts.map(alert => {
                 const isExpanded = expandedAlertId === alert.id;
-                const events = alertEvents[alert.id] || [];
-                const isLoadingEvts = loadingEvents[alert.id];
+                const events = Array.isArray(alertEvents[alert.id]) ? alertEvents[alert.id] : [];
+                const isLoadingEvts = Boolean(loadingEvents[alert.id]);
 
                 return (
                   <Fragment key={alert.id}>
                     <tr 
                       className={`clickable-row ${isExpanded ? "row-expanded" : ""}`} 
                       onClick={() => toggleExpandAlert(alert)}
-                      style={{ cursor: 'pointer', background: isExpanded ? 'rgba(233,46,48,0.04)' : undefined }}
+                      style={{ 
+                        cursor: 'pointer', 
+                        background: isExpanded ? 'rgba(233,46,48,0.04)' : undefined,
+                        transition: 'background-color 0.2s ease'
+                      }}
                     >
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ 
+                            fontSize: '11px', 
+                            color: isExpanded ? 'var(--color-primary)' : 'var(--text-muted)', 
+                            transition: 'transform 0.2s ease', 
+                            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', 
+                            flexShrink: 0 
+                          }}>
                             ▶
                           </span>
-                          <div>
-                            <div className="table-title truncate max-w-md" title={alert.title} style={{ color: "var(--text-primary)", fontWeight: 600 }}>{alert.title}</div>
-                            <div className="table-subtitle truncate max-w-md" title={alert.message}>{alert.message || <span style={{ opacity: 0.5 }}>Sem mensagem técnica</span>}</div>
+                          <div style={{ minWidth: 0 }}>
+                            <div className="table-title truncate" title={alert.title} style={{ color: "var(--text-primary)", fontWeight: 600 }}>{alert.title}</div>
+                            <div className="table-subtitle truncate" title={alert.message} style={{ fontSize: '12px', opacity: 0.85 }}>{alert.message || <span style={{ opacity: 0.5 }}>Sem mensagem técnica</span>}</div>
                           </div>
                         </div>
                       </td>
-                      <td><strong>{alert.client}</strong></td>
+                      <td><strong style={{ fontSize: '13px' }}>{alert.client}</strong></td>
                       <td>{getUrgencyBadge(alert.urgency)}</td>
                       <td>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px' }}>
-                          <strong style={{ color: "var(--color-primary)" }}>{alert.occurrence_count} erro(s)</strong>
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{isExpanded ? '▲ Fechar' : '▼ Ver erros'}</span>
-                        </div>
+                        <span 
+                          className="badge badge--danger" 
+                          style={{ 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '6px', 
+                            padding: '6px 12px', 
+                            borderRadius: '8px', 
+                            fontWeight: 600,
+                            fontSize: '12px'
+                          }}
+                        >
+                          {Icons.AlertTriangle && <Icons.AlertTriangle style={{ width: 13, height: 13 }} />}
+                          <span>{alert.occurrence_count} erro{Number(alert.occurrence_count) > 1 ? 's' : ''}</span>
+                          <span style={{ fontSize: '10px', marginLeft: '2px', opacity: 0.85 }}>{isExpanded ? '▲' : '▼'}</span>
+                        </span>
                       </td>
-                      <td className="muted-cell">{formatDateTime(alert.occurred_at)}</td>
+                      <td className="muted-cell" style={{ whiteSpace: 'nowrap', fontSize: '12px' }}>{formatDateTime(alert.occurred_at)}</td>
                       {canManage && (
                         <td style={{ textAlign: "right" }}>
                           <button 
@@ -400,28 +422,28 @@ export default function PageAlerts({ permissions = [] }) {
 
                     {isExpanded && (
                       <tr>
-                        <td colSpan={canManage ? 6 : 5} style={{ padding: 0, background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border)' }}>
-                          <div style={{ padding: '16px 20px', animation: 'floatUpFilters 0.2s ease-out' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Icons.AlertTriangle style={{ color: 'var(--danger)', width: 16, height: 16 }} />
-                                Ocorrências de Erros ({alert.occurrence_count})
+                        <td colSpan={canManage ? 6 : 5} style={{ padding: '4px 0', background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border)' }}>
+                          <div style={{ padding: '16px 24px', animation: 'floatUpFilters 0.2s ease-out' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {Icons.AlertTriangle && <Icons.AlertTriangle style={{ color: 'var(--danger)', width: 16, height: 16 }} />}
+                                Histórico de Ocorrências ({alert.occurrence_count})
                               </span>
                               <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                Clique em um erro para abrir o log/automação correspondente
+                                Clique em uma ocorrência para acessar o log externo correspondente
                               </span>
                             </div>
 
                             {isLoadingEvts ? (
-                              <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-                                Carregando erros registrados...
+                              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                Carregando histórico de erros...
                               </div>
                             ) : events.length === 0 ? (
-                              <div style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>
-                                Nenhum erro detalhado disponível.
+                              <div style={{ padding: '14px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                Nenhum erro detalhado registrado para esta ocorrência.
                               </div>
                             ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 {events.map((evt, idx) => {
                                   const targetUrl = evt.external_run_id || evt.automation_url || alert.automation_url;
                                   return (
@@ -433,35 +455,38 @@ export default function PageAlerts({ permissions = [] }) {
                                       style={{
                                         display: 'flex',
                                         alignItems: 'center',
-                                        justify: 'space-between',
-                                        padding: '10px 14px',
+                                        justifyContent: 'space-between',
+                                        padding: '12px 18px',
                                         background: 'var(--bg-card)',
                                         border: '1px solid var(--border)',
-                                        borderRadius: '8px',
+                                        borderRadius: '10px',
                                         cursor: targetUrl ? 'pointer' : 'default',
-                                        transition: 'all 0.15s ease'
+                                        transition: 'all 0.15s ease',
+                                        gap: '16px'
                                       }}
                                     >
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-                                        <span className="badge badge--danger" style={{ fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>
-                                          Erro #{events.length - idx}
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: 0 }}>
+                                        <span className="badge badge--danger" style={{ fontSize: '11px', fontWeight: 700, flexShrink: 0, padding: '4px 8px' }}>
+                                          Ocorrência #{events.length - idx}
                                         </span>
                                         <div style={{ minWidth: 0, flex: 1 }}>
                                           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {evt.error_message || alert.message || 'Falha de execução na automação'}
                                           </div>
-                                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                            ID Execução: <code style={{ fontSize: '11px', padding: '2px 4px', background: 'var(--bg-secondary)', borderRadius: '4px' }}>{evt.automation_run_id || 'n/a'}</code> • {formatDateTime(evt.occurred_at || alert.occurred_at)}
+                                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span>Execução: <code style={{ fontSize: '11px', padding: '2px 6px', background: 'var(--bg-secondary)', borderRadius: '4px', border: '1px solid var(--border)' }}>{evt.automation_run_id || 'n/a'}</code></span>
+                                            <span>•</span>
+                                            <span>{formatDateTime(evt.occurred_at || alert.occurred_at)}</span>
                                           </div>
                                         </div>
                                       </div>
 
                                       {targetUrl && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: '12px' }}>
-                                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-primary)' }}>
-                                            Redirecionar
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, padding: '6px 12px', borderRadius: '6px', background: 'rgba(233,46,48,0.08)', color: 'var(--color-primary)' }}>
+                                          <span style={{ fontSize: '12px', fontWeight: 600 }}>
+                                            Abrir Log
                                           </span>
-                                          <Icons.ExternalLink style={{ width: 14, height: 14, color: 'var(--color-primary)' }} />
+                                          {Icons.ExternalLink && <Icons.ExternalLink style={{ width: 14, height: 14 }} />}
                                         </div>
                                       )}
                                     </div>
@@ -486,11 +511,14 @@ export default function PageAlerts({ permissions = [] }) {
         <div 
           style={{ 
             position: 'fixed', 
-            inset: 0, 
-            zIndex: 1000, 
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            zIndex: 9999, 
             display: 'flex', 
             alignItems: 'center', 
-            justify: 'center', 
+            justifyContent: 'center', 
             background: 'rgba(0, 0, 0, 0.65)', 
             backdropFilter: 'blur(4px)',
             padding: '16px'
