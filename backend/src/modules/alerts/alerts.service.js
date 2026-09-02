@@ -35,6 +35,16 @@ export async function processAutomationRunForAlerts({
     if (pref.enabled === 0) return; 
   }
 
+  // 1.5. Check if this specific automation run has already been processed
+  // If we already have an event for this run, it means we already generated an alert for it.
+  const eventCheck = await query(
+    `SELECT id FROM operational_alert_events WHERE organization_id = ? AND automation_run_id = ? LIMIT 1`,
+    [organizationId, automationRunId]
+  );
+  if (eventCheck.rows.length > 0) {
+    return; // Already processed this run
+  }
+
   // 2. Find existing open alert for this automation
   const alertsQuery = await query(
     `SELECT id FROM operational_alerts 
