@@ -84,19 +84,26 @@ alertRoutes.post('/:id/resolve', requirePermission('alerts.manage'), audit('aler
 
   res.locals.auditBefore = current.rows[0];
 
-  await query(
-    `UPDATE operational_alerts 
-     SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP, resolved_by_user_id = ?, resolution_note = ?
-     WHERE id = ?`,
-    [req.user.id, resolution_note || null, req.params.id]
-  );
+  try {
+    await query(
+      `UPDATE operational_alerts 
+       SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP, resolved_by_user_id = ?, resolution_note = ?
+       WHERE id = ?`,
+      [req.user.id, resolution_note || null, req.params.id]
+    );
 
-  await query(
-    `UPDATE notifications 
-     SET status = 'read', read_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
-     WHERE entity_type = 'alert' AND entity_id = ? AND organization_id = ?`,
-    [req.params.id, req.user.organization_id]
-  );
+    await query(
+      `UPDATE notifications 
+       SET status = 'read', read_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+       WHERE entity_type = 'alert' AND entity_id = ? AND organization_id = ?`,
+      [req.params.id, req.user.organization_id]
+    );
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      throw new HttpError(400, 'Este alerta já possui um registro de resolução ativo.');
+    }
+    throw err;
+  }
   
   ok(res, { success: true });
 }));
