@@ -23,6 +23,10 @@ export default function PageAlerts({ permissions = [] }) {
   const [sortBy, setSortBy] = useState("recent");
   const [tempSortBy, setTempSortBy] = useState("recent");
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Ordenação nas colunas da tabela
+  const [sortField, setSortField] = useState(null);
+  const [sortDirection, setSortDirection] = useState(null); // 'desc', 'asc', null
 
   // Modal de confirmação de resolução
   const [alertToResolve, setAlertToResolve] = useState(null);
@@ -45,6 +49,8 @@ export default function PageAlerts({ permissions = [] }) {
         setSortBy("recent");
         setTempSortBy("recent");
         setShowFilters(false);
+        setSortField(null);
+        setSortDirection(null);
         setAlertToResolve(null);
         setExpandedAlertId(null);
       }
@@ -90,6 +96,29 @@ export default function PageAlerts({ permissions = [] }) {
     }
 
     result.sort((a, b) => {
+      if (sortField && sortDirection) {
+        let valA = a[sortField];
+        let valB = b[sortField];
+        
+        if (sortField === 'urgency') {
+          valA = getUrgencyWeight(valA);
+          valB = getUrgencyWeight(valB);
+        } else if (sortField === 'occurred_at') {
+          valA = new Date(valA || 0).getTime();
+          valB = new Date(valB || 0).getTime();
+        } else if (sortField === 'title' || sortField === 'client') {
+          valA = String(valA || '').toLowerCase();
+          valB = String(valB || '').toLowerCase();
+        } else if (sortField === 'occurrence_count') {
+          valA = Number(valA || 0);
+          valB = Number(valB || 0);
+        }
+        
+        if (valA < valB) return sortDirection === 'desc' ? 1 : -1;
+        if (valA > valB) return sortDirection === 'desc' ? -1 : 1;
+        return 0;
+      }
+
       if (sortBy === "recent") {
         return new Date(b.occurred_at) - new Date(a.occurred_at);
       }
@@ -109,7 +138,20 @@ export default function PageAlerts({ permissions = [] }) {
     });
 
     return result;
-  }, [alerts, search, urgencyFilter, sortBy]);
+  }, [alerts, search, urgencyFilter, sortBy, sortField, sortDirection]);
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      if (sortDirection === 'desc') setSortDirection('asc');
+      else if (sortDirection === 'asc') {
+        setSortField(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -342,11 +384,21 @@ export default function PageAlerts({ permissions = [] }) {
           <table className="table table--compact">
             <thead>
               <tr>
-                <th>Alerta / Detalhes</th>
-                <th>Cliente</th>
-                <th>Urgência</th>
-                <th>Erros</th>
-                <th>Ocorrência</th>
+                <th onClick={() => handleSort('title')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  Alerta / Detalhes {sortField === 'title' ? (sortDirection === 'desc' ? '▼' : '▲') : ''}
+                </th>
+                <th onClick={() => handleSort('client')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  Cliente {sortField === 'client' ? (sortDirection === 'desc' ? '▼' : '▲') : ''}
+                </th>
+                <th onClick={() => handleSort('urgency')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  Urgência {sortField === 'urgency' ? (sortDirection === 'desc' ? '▼' : '▲') : ''}
+                </th>
+                <th onClick={() => handleSort('occurrence_count')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  Erros {sortField === 'occurrence_count' ? (sortDirection === 'desc' ? '▼' : '▲') : ''}
+                </th>
+                <th onClick={() => handleSort('occurred_at')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  Ocorrência {sortField === 'occurred_at' ? (sortDirection === 'desc' ? '▼' : '▲') : ''}
+                </th>
                 {canManage && <th style={{ textAlign: "right", width: "100px" }}>Ações</th>}
               </tr>
             </thead>

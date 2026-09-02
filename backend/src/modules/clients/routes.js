@@ -96,8 +96,8 @@ clientRoutes.get('/', requirePermission('clients.view'), asyncHandler(async (req
             COALESCE(rs.total_runs, 0) AS total_runs,
             COALESCE(rs.success_runs, 0) AS success_runs,
             COALESCE(rs.error_runs, 0) AS error_runs,
-            CASE WHEN COALESCE(rs.total_runs, 0) = 0 THEN NULL ELSE ROUND((rs.success_runs / rs.total_runs) * 100, 2) END AS success_rate,
-            CASE WHEN COALESCE(rs.total_runs, 0) = 0 THEN NULL ELSE ROUND((rs.error_runs / rs.total_runs) * 100, 2) END AS failure_rate,
+            CASE WHEN COALESCE(rs.success_runs + rs.error_runs, 0) = 0 THEN NULL ELSE ROUND((rs.success_runs / (rs.success_runs + rs.error_runs)) * 100, 2) END AS success_rate,
+            CASE WHEN COALESCE(rs.success_runs + rs.error_runs, 0) = 0 THEN NULL ELSE ROUND((rs.error_runs / (rs.success_runs + rs.error_runs)) * 100, 2) END AS failure_rate,
             c.notes
        FROM clients c
        LEFT JOIN automations a ON a.client_id = c.id

@@ -52,8 +52,8 @@ async function overviewHandler(req, res) {
       COALESCE((SELECT successful_runs FROM run_stats), 0) AS successful_runs,
       COALESCE((SELECT failed_runs FROM run_stats), 0) AS failed_runs,
       COALESCE((SELECT pending_runs FROM run_stats), 0) AS pending_runs,
-      CASE WHEN COALESCE((SELECT total_runs FROM run_stats), 0) = 0 THEN 0 ELSE ROUND(((SELECT successful_runs FROM run_stats) / (SELECT total_runs FROM run_stats)) * 100, 2) END AS success_rate,
-      CASE WHEN COALESCE((SELECT total_runs FROM run_stats), 0) = 0 THEN 0 ELSE ROUND(((SELECT failed_runs FROM run_stats) / (SELECT total_runs FROM run_stats)) * 100, 2) END AS failure_rate
+      CASE WHEN COALESCE(((SELECT successful_runs FROM run_stats) + (SELECT failed_runs FROM run_stats)), 0) = 0 THEN 0 ELSE ROUND(((SELECT successful_runs FROM run_stats) / ((SELECT successful_runs FROM run_stats) + (SELECT failed_runs FROM run_stats))) * 100, 2) END AS success_rate,
+      CASE WHEN COALESCE(((SELECT successful_runs FROM run_stats) + (SELECT failed_runs FROM run_stats)), 0) = 0 THEN 0 ELSE ROUND(((SELECT failed_runs FROM run_stats) / ((SELECT successful_runs FROM run_stats) + (SELECT failed_runs FROM run_stats))) * 100, 2) END AS failure_rate
   `, [orgId, orgId, orgId, orgId, orgId]);
 
   const topClients = await query(`

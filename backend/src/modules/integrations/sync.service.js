@@ -103,7 +103,7 @@ async function upsertAutomationRuns(automationId, workflowId, executions = []) {
 
     // After updating runs, check if we need to fire alerts
     // For syncing we use the default organization ID (assume client is from same org)
-    if (['error', 'failed', 'failure', 'crashed'].includes(String(execution.status || '').toLowerCase())) {
+    if (['error', 'failed', 'failure', 'crashed'].includes(String(execution.status || '').toLowerCase()) && execution.mode !== 'manual') {
       const orgQuery = await query(`
         SELECT c.organization_id, a.client_id 
         FROM automations a
@@ -175,7 +175,8 @@ export async function syncN8nData() {
     const lastExecution = executions[0] || null;
     const lastSuccess = executions.find((execution) => ['success', 'succeeded', 'ok', 'finished'].includes(String(execution.status || '').toLowerCase())) || null;
     const lastError = executions.find((execution) => ['error', 'failed', 'failure', 'crashed'].includes(String(execution.status || '').toLowerCase())) || null;
-    const errorRate = executions.length ? Number(((errorCount / executions.length) * 100).toFixed(2)) : 0;
+    const completedCount = successCount + errorCount;
+    const errorRate = completedCount ? Number(((errorCount / completedCount) * 100).toFixed(2)) : 0;
 
     await query(
       `INSERT INTO automations (id, client_id, external_id, source, name, url, status, is_active, last_execution_at, last_success_at, last_error_at, error_rate, metadata)

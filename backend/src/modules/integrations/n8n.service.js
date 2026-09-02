@@ -32,9 +32,9 @@ export async function fetchN8nSnapshot() {
   `;
 
   const executionsQuery = `
-    SELECT id, status, "workflowId" AS workflow_id, "startedAt" AS started_at, "stoppedAt" AS stopped_at
+    SELECT id, status, "workflowId" AS workflow_id, "startedAt" AS started_at, "stoppedAt" AS stopped_at, mode
       FROM (
-        SELECT id, status, "workflowId", "startedAt", "stoppedAt",
+        SELECT id, status, "workflowId", "startedAt", "stoppedAt", mode,
                ROW_NUMBER() OVER(PARTITION BY "workflowId" ORDER BY id DESC) AS rn
           FROM execution_entity
          WHERE "startedAt" >= NOW() - INTERVAL '7 days'
