@@ -52,6 +52,7 @@ export default function PageTelephony({ permissions = [] }) {
 
   const canManage = permissions.includes("telephony.manage") || permissions.includes("*");
   const canExport = permissions.includes("telephony.export") || permissions.includes("*");
+  const isSuperAdmin = permissions.includes("*");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -165,6 +166,16 @@ export default function PageTelephony({ permissions = [] }) {
     reader.readAsText(file);
   };
 
+  const handleToggleStatus = async (item) => {
+    try {
+      const newStatus = item.status === 'ativo' ? 'inativo' : 'ativo';
+      await api.updateTelephony(item.id, { ...item, status: newStatus });
+      loadData();
+    } catch (err) {
+      alert("Erro ao alterar status: " + err.message);
+    }
+  };
+
   return (
     <div className="page-layout">
       <SectionHeader
@@ -240,10 +251,21 @@ export default function PageTelephony({ permissions = [] }) {
         </button>
 
         {showFilters && (
-          <div className="filters-inline-float">
+          <div style={{ 
+            display: 'flex', 
+            gap: '12px', 
+            alignItems: 'center', 
+            flexWrap: 'wrap', 
+            width: '100%', 
+            marginTop: '8px', 
+            padding: '12px', 
+            background: 'var(--surface)', 
+            borderRadius: '8px', 
+            border: '1px solid var(--border)' 
+          }}>
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '130px' }}
+              style={{ minWidth: '130px', flex: '1 1 auto' }}
               value={tempCategory} 
               onChange={e => setTempCategory(e.target.value)}
             >
@@ -255,7 +277,7 @@ export default function PageTelephony({ permissions = [] }) {
 
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '130px' }}
+              style={{ minWidth: '130px', flex: '1 1 auto' }}
               value={tempStatus} 
               onChange={e => setTempStatus(e.target.value)}
             >
@@ -267,7 +289,7 @@ export default function PageTelephony({ permissions = [] }) {
 
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '130px' }}
+              style={{ minWidth: '130px', flex: '1 1 auto' }}
               value={tempTeam} 
               onChange={e => setTempTeam(e.target.value)}
             >
@@ -278,7 +300,7 @@ export default function PageTelephony({ permissions = [] }) {
 
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '130px' }}
+              style={{ minWidth: '130px', flex: '1 1 auto' }}
               value={tempSector} 
               onChange={e => setTempSector(e.target.value)}
             >
@@ -287,39 +309,41 @@ export default function PageTelephony({ permissions = [] }) {
               {uniqueSectors.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
 
-            <button 
-              type="button" 
-              className="btn btn--outline btn--sm text-danger" 
-              onClick={() => {
-                setTempSearch("");
-                setSearch("");
-                setTempCategory("");
-                setCategory("");
-                setTempStatus("");
-                setStatus("");
-                setTempTeam("");
-                setTeam("");
-                setTempSector("");
-                setSector("");
-              }}
-              style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
-            >
-              Limpar Filtros
-            </button>
+            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+              <button 
+                type="button" 
+                className="btn btn--outline btn--sm text-danger" 
+                onClick={() => {
+                  setTempSearch("");
+                  setSearch("");
+                  setTempCategory("");
+                  setCategory("");
+                  setTempStatus("");
+                  setStatus("");
+                  setTempTeam("");
+                  setTeam("");
+                  setTempSector("");
+                  setSector("");
+                }}
+                style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
+              >
+                Limpar Filtros
+              </button>
 
-            <button 
-              type="button" 
-              className="btn btn--primary btn--sm" 
-              onClick={() => {
-                setSearch(tempSearch);
-                setCategory(tempCategory);
-                setStatus(tempStatus);
-                setTeam(tempTeam);
-                setSector(tempSector);
-              }}
-            >
-              Filtrar
-            </button>
+              <button 
+                type="button" 
+                className="btn btn--primary btn--sm" 
+                onClick={() => {
+                  setSearch(tempSearch);
+                  setCategory(tempCategory);
+                  setStatus(tempStatus);
+                  setTeam(tempTeam);
+                  setSector(tempSector);
+                }}
+              >
+                Filtrar
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -340,7 +364,7 @@ export default function PageTelephony({ permissions = [] }) {
                 <th>Responsável</th>
                 <th>Time / Setor</th>
                 <th style={{ textAlign: "right" }}>Custo / Mês</th>
-                {canManage && <th style={{ textAlign: "right", width: "80px" }}>Ações</th>}
+                {canManage && <th style={{ textAlign: "right", width: "160px" }}>Ações</th>}
               </tr>
             </thead>
             <tbody>
@@ -365,9 +389,21 @@ export default function PageTelephony({ permissions = [] }) {
                   <td style={{ textAlign: "right" }}>{formatCurrency(Number(item.monthly_fee || 0))}</td>
                   {canManage && (
                     <td style={{ textAlign: "right" }}>
-                      <button className="btn btn--ghost btn--sm" onClick={(e) => { e.stopPropagation(); setSelectedItem(item); setIsModalOpen(true); }}>
-                        Editar
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          className="btn btn--ghost btn--sm" 
+                          onClick={(e) => { e.stopPropagation(); handleToggleStatus(item); }}
+                          title={item.status === 'ativo' ? 'Desativar linha' : 'Ativar linha'}
+                        >
+                          {item.status === 'ativo' ? 'Desativar' : 'Ativar'}
+                        </button>
+                        <button 
+                          className="btn btn--ghost btn--sm" 
+                          onClick={(e) => { e.stopPropagation(); setSelectedItem(item); setIsModalOpen(true); }}
+                        >
+                          Editar
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -380,6 +416,7 @@ export default function PageTelephony({ permissions = [] }) {
       {isModalOpen && (
         <TelephonyModal
           item={selectedItem}
+          isSuperAdmin={isSuperAdmin}
           onClose={() => setIsModalOpen(false)}
           onSuccess={() => { setIsModalOpen(false); loadData(); }}
         />

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../../services/api";
 
-export function TelephonyModal({ item, onClose, onSuccess }) {
+export function TelephonyModal({ item, onClose, onSuccess, isSuperAdmin }) {
   const [formData, setFormData] = useState({
     normalized_number: "",
     display_number: "",
@@ -211,10 +211,15 @@ export function TelephonyModal({ item, onClose, onSuccess }) {
 
         <div className="p-4 border-t border-border flex justify-between items-center bg-muted/5">
           <div>
-            {item && (
+            {item && isSuperAdmin && item.status === 'inativo' && (
               <button type="button" className="text-danger hover:underline text-sm font-medium" onClick={handleDelete} disabled={loading}>
                 Excluir linha
               </button>
+            )}
+            {item && (!isSuperAdmin || item.status !== 'inativo') && (
+              <span className="text-xs text-muted" title="Apenas super admins podem excluir linhas inativas.">
+                Exclusão desabilitada
+              </span>
             )}
           </div>
           <div className="flex gap-2">
