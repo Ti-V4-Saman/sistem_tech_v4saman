@@ -70,6 +70,16 @@ clientRoutes.get('/', requirePermission('clients.view'), asyncHandler(async (req
     params.push(search, search, search);
   }
 
+  const role = req.user.access_role_slug;
+  if (role !== 'admin' && role !== 'super-admin') {
+    if (req.user.team_name) {
+      where += ' AND c.unit = ?';
+      params.push(req.user.team_name);
+    } else {
+      where += ' AND 1 = 0'; // Se o usuário não tem time, não vê clientes
+    }
+  }
+
   const { rows } = await query(
     `SELECT c.id,
             c.name,
