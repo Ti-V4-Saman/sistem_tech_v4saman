@@ -15,13 +15,9 @@ export default function PageTelephony({ permissions = [] }) {
   const [search, setSearch] = useState("");
   const [tempSearch, setTempSearch] = useState("");
   const [category, setCategory] = useState("");
-  const [tempCategory, setTempCategory] = useState("");
   const [status, setStatus] = useState("");
-  const [tempStatus, setTempStatus] = useState("");
   const [team, setTeam] = useState("");
-  const [tempTeam, setTempTeam] = useState("");
   const [sector, setSector] = useState("");
-  const [tempSector, setTempSector] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   
   const [selectedItem, setSelectedItem] = useState(null);
@@ -36,13 +32,9 @@ export default function PageTelephony({ permissions = [] }) {
         setSearch("");
         setTempSearch("");
         setCategory("");
-        setTempCategory("");
         setStatus("");
-        setTempStatus("");
         setTeam("");
-        setTempTeam("");
         setSector("");
-        setTempSector("");
         setShowFilters(false);
       }
     };
@@ -113,6 +105,15 @@ export default function PageTelephony({ permissions = [] }) {
       total_cost
     };
   }, [filteredData]);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (category) count++;
+    if (status) count++;
+    if (team) count++;
+    if (sector) count++;
+    return count;
+  }, [category, status, team, sector]);
 
   const handleExportCsv = () => {
     window.open(`${import.meta.env.VITE_API_URL || "/api"}/telephony/export/csv?token=${api.getStoredSession()?.accessToken}`, '_blank');
@@ -220,15 +221,19 @@ export default function PageTelephony({ permissions = [] }) {
         </section>
       )}
 
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
-        <div className="search-wrap" style={{ flex: '1 1 200px', minWidth: '160px', maxWidth: '320px' }}>
+      {/* Barra de Busca e Filtros Horizontais */}
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
+        <div className="search-wrap" style={{ flex: '0 1 260px', minWidth: '180px' }}>
           <span className="si" style={{ paddingLeft: '12px', display: 'flex', alignItems: 'center' }}>🔍</span>
           <input 
             type="text" 
             className="search-input" 
             placeholder="Buscar por número..." 
             value={tempSearch} 
-            onChange={e => setTempSearch(e.target.value)} 
+            onChange={e => {
+              setTempSearch(e.target.value);
+              if (e.target.value === "") setSearch("");
+            }} 
             onKeyDown={(e) => { if (e.key === 'Enter') setSearch(tempSearch); }}
             style={{ width: "100%", paddingLeft: "36px" }}
           />
@@ -238,6 +243,7 @@ export default function PageTelephony({ permissions = [] }) {
           type="button" 
           className="btn btn--primary btn--sm" 
           onClick={() => setSearch(tempSearch)}
+          style={{ gap: '6px' }}
         >
           Pesquisar
         </button>
@@ -246,52 +252,55 @@ export default function PageTelephony({ permissions = [] }) {
           type="button" 
           className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
           onClick={() => setShowFilters(!showFilters)}
+          style={{ gap: '6px', alignItems: 'center', display: 'inline-flex' }}
         >
-          Filtros Avançados
+          <span>Filtros Avançados</span>
+          {activeFiltersCount > 0 && (
+            <span style={{
+              background: showFilters ? 'rgba(255,255,255,0.35)' : 'var(--color-primary)',
+              color: '#fff',
+              borderRadius: '999px',
+              padding: '1px 6px',
+              fontSize: '11px',
+              fontWeight: '700',
+              lineHeight: '14px'
+            }}>
+              {activeFiltersCount}
+            </span>
+          )}
         </button>
 
         {showFilters && (
-          <div style={{ 
-            display: 'flex', 
-            gap: '12px', 
-            alignItems: 'center', 
-            flexWrap: 'wrap', 
-            width: '100%', 
-            marginTop: '8px', 
-            padding: '12px', 
-            background: 'var(--surface)', 
-            borderRadius: '8px', 
-            border: '1px solid var(--border)' 
-          }}>
+          <div className="filters-inline-float" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '130px', flex: '1 1 auto' }}
-              value={tempCategory} 
-              onChange={e => setTempCategory(e.target.value)}
+              style={{ minWidth: '140px', width: 'auto' }}
+              value={category} 
+              onChange={e => setCategory(e.target.value)}
             >
               <option value="">Categoria: Todas</option>
-              <option value="fixo">Fixo</option>
-              <option value="celular">Celular</option>
-              <option value="celular_voip">Celular VoIP</option>
+              <option value="fixo">☎️ Fixo</option>
+              <option value="celular">📱 Celular</option>
+              <option value="celular_voip">🌐 Celular VoIP</option>
             </select>
 
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '130px', flex: '1 1 auto' }}
-              value={tempStatus} 
-              onChange={e => setTempStatus(e.target.value)}
+              style={{ minWidth: '140px', width: 'auto' }}
+              value={status} 
+              onChange={e => setStatus(e.target.value)}
             >
               <option value="">Status: Todos</option>
-              <option value="ativo">Ativo</option>
-              <option value="aguardando_ativacao">Aguardando</option>
-              <option value="inativo">Inativo</option>
+              <option value="ativo">🟢 Ativo</option>
+              <option value="aguardando_ativacao">🟡 Aguardando</option>
+              <option value="inativo">🔴 Inativo</option>
             </select>
 
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '130px', flex: '1 1 auto' }}
-              value={tempTeam} 
-              onChange={e => setTempTeam(e.target.value)}
+              style={{ minWidth: '150px', width: 'auto' }}
+              value={team} 
+              onChange={e => setTeam(e.target.value)}
             >
               <option value="">Time: Todos</option>
               <option value="Sem time">Sem time</option>
@@ -300,50 +309,32 @@ export default function PageTelephony({ permissions = [] }) {
 
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '130px', flex: '1 1 auto' }}
-              value={tempSector} 
-              onChange={e => setTempSector(e.target.value)}
+              style={{ minWidth: '150px', width: 'auto' }}
+              value={sector} 
+              onChange={e => setSector(e.target.value)}
             >
               <option value="">Setor: Todos</option>
               <option value="Sem setor">Sem setor</option>
               {uniqueSectors.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
 
-            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+            {(category || status || team || sector || search) && (
               <button 
                 type="button" 
                 className="btn btn--outline btn--sm text-danger" 
                 onClick={() => {
                   setTempSearch("");
                   setSearch("");
-                  setTempCategory("");
                   setCategory("");
-                  setTempStatus("");
                   setStatus("");
-                  setTempTeam("");
                   setTeam("");
-                  setTempSector("");
                   setSector("");
                 }}
-                style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
+                style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.2)' }}
               >
-                Limpar Filtros
+                ✕ Limpar
               </button>
-
-              <button 
-                type="button" 
-                className="btn btn--primary btn--sm" 
-                onClick={() => {
-                  setSearch(tempSearch);
-                  setCategory(tempCategory);
-                  setStatus(tempStatus);
-                  setTeam(tempTeam);
-                  setSector(tempSector);
-                }}
-              >
-                Filtrar
-              </button>
-            </div>
+            )}
           </div>
         )}
       </div>
@@ -369,7 +360,16 @@ export default function PageTelephony({ permissions = [] }) {
             </thead>
             <tbody>
               {filteredData.map(item => (
-                <tr key={item.id} className="clickable-row" onClick={() => canManage && setSelectedItem(item) && setIsModalOpen(true)}>
+                <tr 
+                  key={item.id} 
+                  className="clickable-row" 
+                  onClick={() => {
+                    if (canManage) {
+                      setSelectedItem(item);
+                      setIsModalOpen(true);
+                    }
+                  }}
+                >
                   <td>
                     <div className="table-title">{item.display_number}</div>
                     <div className="table-subtitle font-mono">{item.normalized_number}</div>
@@ -416,7 +416,10 @@ export default function PageTelephony({ permissions = [] }) {
       {isModalOpen && (
         <TelephonyModal
           item={selectedItem}
+          canManage={canManage}
           isSuperAdmin={isSuperAdmin}
+          teams={uniqueTeams}
+          sectors={uniqueSectors}
           onClose={() => setIsModalOpen(false)}
           onSuccess={() => { setIsModalOpen(false); loadData(); }}
         />
