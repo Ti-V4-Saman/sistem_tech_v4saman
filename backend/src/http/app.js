@@ -5,6 +5,7 @@ import { securityHeaders, rateLimit } from '../middleware/security.js';
 import { errorHandler, notFound } from '../middleware/errors.js';
 import { authRoutes } from '../modules/auth/routes.js';
 import { dashboardRoutes } from '../modules/dashboard/routes.js';
+import { adsDashboardRoutes } from '../modules/ads-dashboard/routes.js';
 import { clientRoutes } from '../modules/clients/routes.js';
 import { userRoutes } from '../modules/users/routes.js';
 import { credentialRoutes } from '../modules/credentials/routes.js';
@@ -34,6 +35,7 @@ export function createApp() {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/dashboard', dashboardRoutes);
+  app.use('/api/ads-dashboard', adsDashboardRoutes);
   app.use('/api/clients', clientRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/credentials', credentialRoutes);

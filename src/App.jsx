@@ -8,6 +8,7 @@ import { getInitials, formatShortName } from "./utils/formatters";
 // Pages
 const PageHome = lazy(() => import("./pages/Home/PageHome"));
 const PageDashboard = lazy(() => import("./pages/Dashboard/PageDashboard"));
+const PageAdsDashboard = lazy(() => import("./pages/Dashboards/PageAdsDashboard"));
 const PageClients = lazy(() => import("./pages/Clients/PageClients"));
 const PageDocuments = lazy(() => import("./pages/Documents/PageDocuments"));
 const PageUsers = lazy(() => import("./pages/Users/PageUsers"));
@@ -23,7 +24,8 @@ import { CommandPalette } from "./components/app/CommandPalette";
 
 const NAV = [
   { id: "home", path: "/", label: "Início", icon: <Icons.Dashboard /> },
-  { id: "dashboard", path: "/dashboard", label: "Visão Geral", icon: () => <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" /></svg> },
+  { id: "dashboard", path: "/dashboard", label: "Operação", icon: () => <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" /></svg> },
+  { id: "dashboards-ads", path: "/dashboards", label: "Dashboards", icon: <Icons.TrendingUp /> },
   { id: "clients", path: "/clientes", label: "Clientes", icon: <Icons.Users /> },
   { id: "docs", path: "/documentos", label: "Documentos", icon: <Icons.Doc /> },
   { id: "about", path: "/sobre-nos", label: "Sobre Nós", icon: <Icons.Sparkles /> },
@@ -457,6 +459,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<PageHome session={session} setPage={navigateTo} />} />
                 <Route path="/dashboard" element={<PageDashboard setPage={navigateTo} isAdmin={isAdmin} />} />
+                <Route path="/dashboards" element={<PageAdsDashboard />} />
                 <Route path="/clientes" element={<PageClients session={session} />} />
                 <Route path="/documentos" element={<PageDocuments session={session} />} />
                 <Route path="/sobre-nos" element={<PageAboutUs session={session} setPage={navigateTo} />} />

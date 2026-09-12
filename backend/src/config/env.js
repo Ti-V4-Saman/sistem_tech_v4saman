@@ -56,4 +56,11 @@ export const env = {
     viewerBaseUrl: process.env.TYPEBOT_VIEWER_BASE_URL,
     editorBaseUrl: process.env.TYPEBOT_EDITOR_BASE_URL,
   },
+  adsDb: {
+    host: process.env.ADS_DB_HOST,
+    port: Number(process.env.ADS_DB_PORT || 3306),
+    user: process.env.ADS_DB_USER,
+    password: process.env.ADS_DB_PASSWORD,
+    connectionLimit: Number(process.env.ADS_DB_CONNECTION_LIMIT || 10),
+  },
 };

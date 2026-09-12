@@ -688,5 +688,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ enabled }),
     });
+  },
+
+  // --- Ads Dashboard ---
+  getAdsClients: async () => {
+    return await request("/ads-dashboard/clients");
+  },
+
+  getAdsOverview: async (clientId, startDate, endDate) => {
+    const q = new URLSearchParams({ clientId, startDate, endDate }).toString();
+    return await request(`/ads-dashboard/overview?${q}`);
+  },
+
+  getAdsDaily: async (clientId, platform, startDate, endDate) => {
+    const q = new URLSearchParams({ clientId, platform, startDate, endDate }).toString();
+    return await request(`/ads-dashboard/daily?${q}`);
+  },
+
+  getAdsCampaigns: async (clientId, platform, startDate, endDate) => {
+    const q = new URLSearchParams({ clientId, platform, startDate, endDate }).toString();
+    return await request(`/ads-dashboard/campaigns?${q}`);
   }
 };

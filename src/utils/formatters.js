@@ -45,6 +45,19 @@ export function formatCurrency(val) {
 }
 
 /**
+ * Formata um número com separador de milhares.
+ * @param {number} val
+ * @returns {string}
+ */
+export function formatNumber(val) {
+  if (val == null || isNaN(val)) return "0";
+  return new Intl.NumberFormat("pt-BR", {
+    maximumFractionDigits: 2,
+  }).format(val);
+}
+
+
+/**
  * Extrai iniciais de um nome ou e-mail.
  * @param {string} nameOrEmail
  * @returns {string} Até 2 caracteres em maiúsculo.
