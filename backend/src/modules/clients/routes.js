@@ -179,6 +179,13 @@ clientRoutes.get('/:id', requirePermission('clients.view'), asyncHandler(async (
   const { rows } = await query(`SELECT * FROM clients WHERE id = ? AND organization_id = ?`, [req.params.id, req.user.organization_id]);
   if (!rows[0]) throw new HttpError(404, 'Client not found.');
 
+  const role = req.user.access_role_slug;
+  if (role !== 'admin' && role !== 'super-admin') {
+    if (!req.user.team_name || (rows[0].unit && rows[0].unit.toLowerCase() !== req.user.team_name.toLowerCase())) {
+      throw new HttpError(403, 'Acesso negado: você só pode acessar clientes do seu squad.');
+    }
+  }
+
   const tools = await query(`SELECT * FROM client_tools WHERE client_id = ? ORDER BY created_at DESC`, [req.params.id]);
   const automations = await query(`SELECT * FROM automations WHERE client_id = ? ORDER BY updated_at DESC`, [req.params.id]);
   const bots = await query(`SELECT * FROM bots WHERE client_id = ? ORDER BY updated_at DESC`, [req.params.id]);
@@ -198,6 +205,13 @@ clientRoutes.get('/:id', requirePermission('clients.view'), asyncHandler(async (
 clientRoutes.patch('/:id', requirePermission('clients.update'), audit('client', 'update'), asyncHandler(async (req, res) => {
   const current = await query(`SELECT * FROM clients WHERE id = ? AND organization_id = ?`, [req.params.id, req.user.organization_id]);
   if (!current.rows[0]) throw new HttpError(404, 'Client not found.');
+
+  const role = req.user.access_role_slug;
+  if (role !== 'admin' && role !== 'super-admin') {
+    if (!req.user.team_name || (current.rows[0].unit && current.rows[0].unit.toLowerCase() !== req.user.team_name.toLowerCase())) {
+      throw new HttpError(403, 'Acesso negado: você só pode atualizar clientes do seu squad.');
+    }
+  }
 
   const previous = current.rows[0];
   res.locals.auditBefore = previous;
