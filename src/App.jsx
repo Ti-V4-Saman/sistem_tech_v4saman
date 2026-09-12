@@ -3,6 +3,7 @@ import { Routes, Route, useNavigate, useLocation, Link } from "react-router-dom"
 import { api } from "./services/api";
 import { Icons } from "./icons/Icons";
 import { LoadingSpinner } from "./components/ui/LoadingSpinner";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { getInitials, formatShortName } from "./utils/formatters";
 
 // Pages
@@ -455,23 +456,25 @@ export default function App() {
 
         <main className="main-content">
           <div className="content-wrapper">
-            <Suspense fallback={<LoadingSpinner />}>
-              <Routes>
-                <Route path="/" element={<PageHome session={session} setPage={navigateTo} />} />
-                <Route path="/dashboard" element={<PageDashboard setPage={navigateTo} isAdmin={isAdmin} />} />
-                <Route path="/dashboards" element={<PageAdsDashboard />} />
-                <Route path="/clientes" element={<PageClients session={session} />} />
-                <Route path="/documentos" element={<PageDocuments session={session} />} />
-                <Route path="/sobre-nos" element={<PageAboutUs session={session} setPage={navigateTo} />} />
-                <Route path="/telefonia" element={isSuperAdmin ? <PageTelephony permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
-                <Route path="/fluxos" element={isSuperAdmin ? <PageFlowTemplates permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
-                <Route path="/alertas" element={isSuperAdmin ? <PageAlerts permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
-                <Route path="/usuarios" element={isSuperAdmin ? <PageUsers /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
-                <Route path="/perfil" element={<PageProfile session={session} onSessionUpdate={setSession} />} />
-                <Route path="/configuracoes" element={isSuperAdmin ? <PageSettings session={session} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
-                <Route path="*" element={<div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Página não encontrada.</div>} />
-              </Routes>
-            </Suspense>
+            <ErrorBoundary>
+              <Suspense fallback={<LoadingSpinner />}>
+                <Routes>
+                  <Route path="/" element={<PageHome session={session} setPage={navigateTo} />} />
+                  <Route path="/dashboard" element={<PageDashboard setPage={navigateTo} isAdmin={isAdmin} />} />
+                  <Route path="/dashboards" element={<PageAdsDashboard />} />
+                  <Route path="/clientes" element={<PageClients session={session} />} />
+                  <Route path="/documentos" element={<PageDocuments session={session} />} />
+                  <Route path="/sobre-nos" element={<PageAboutUs session={session} setPage={navigateTo} />} />
+                  <Route path="/telefonia" element={isSuperAdmin ? <PageTelephony permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                  <Route path="/fluxos" element={isSuperAdmin ? <PageFlowTemplates permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                  <Route path="/alertas" element={isSuperAdmin ? <PageAlerts permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                  <Route path="/usuarios" element={isSuperAdmin ? <PageUsers /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                  <Route path="/perfil" element={<PageProfile session={session} onSessionUpdate={setSession} />} />
+                  <Route path="/configuracoes" element={isSuperAdmin ? <PageSettings session={session} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                  <Route path="*" element={<div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Página não encontrada.</div>} />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>
