@@ -1,14 +1,24 @@
 import { getGreeting, formatShortName } from "../../utils/formatters";
 import { Icons } from "../../icons/Icons";
+import { AboutSection } from "../../components/about/AboutSection";
 
 /**
  * @module PageHome
- * @description Página inicial com banner de boas-vindas e ações rápidas.
+ * @description Página inicial com banner de boas-vindas, ações rápidas e área Sobre Nós.
  */
 export default function PageHome({ session, setPage }) {
   const rawName = session?.user?.name || "Colaborador";
   const displayName = formatShortName(rawName);
   const isSuperAdmin = session?.user?.accessRoleSlug === "super-admin";
+
+  const handleScrollToAbout = () => {
+    const elem = document.getElementById("sobre-nos");
+    if (elem) {
+      elem.scrollIntoView({ behavior: "smooth" });
+    } else if (setPage) {
+      setPage("about");
+    }
+  };
 
   return (
     <div className="home-container">
@@ -45,6 +55,12 @@ export default function PageHome({ session, setPage }) {
               >
                 <Icons.Doc /> Base de Conhecimento
               </button>
+              <button
+                className="btn btn--outline"
+                onClick={handleScrollToAbout}
+              >
+                <Icons.Sparkles /> Sobre Nós & Cultura
+              </button>
             </div>
             
             {isSuperAdmin && (
@@ -58,6 +74,9 @@ export default function PageHome({ session, setPage }) {
           </div>
         </div>
       </div>
+
+      {/* Embedded Sobre Nós Section */}
+      <AboutSection setPage={setPage} />
 
       {/* Footer text */}
       <div className="home-footer">

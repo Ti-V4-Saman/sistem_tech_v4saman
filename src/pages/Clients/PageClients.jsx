@@ -220,6 +220,10 @@ export default function PageClients({ session }) {
   const [tempIntegration, setTempIntegration] = useState("all");
   const [squadFilter, setSquadFilter] = useState("all");
   const [tempSquad, setTempSquad] = useState("all");
+  const [quizFilter, setQuizFilter] = useState("all");
+  const [tempQuiz, setTempQuiz] = useState("all");
+  const [lpsFilter, setLpsFilter] = useState("all");
+  const [tempLps, setTempLps] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc"); // asc or desc
   const [tempSortBy, setTempSortBy] = useState("name");
@@ -241,7 +245,7 @@ export default function PageClients({ session }) {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({ name: "", company: "", status: "active" });
+  const [formData, setFormData] = useState({ name: "", company: "", squad: "", quiz: "", lps: "", status: "active" });
 
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [accessesList, setAccessesList] = useState([]);
@@ -266,13 +270,13 @@ export default function PageClients({ session }) {
   }, []);
 
   const squadOptions = useMemo(() => {
-    const defaultList = ["Seals", "Bravo", "Balboa", "Briu", "Snipers", "Atlas"];
+    const defaultList = ["Seals", "Bravo", "Balboa", "Briu", "Snipers", "Atlas", "Genius"];
     const set = new Set(defaultList);
 
     systemSquads.forEach(s => set.add(s));
 
     clients.forEach(c => {
-      const sq = c.squad || c.team || c.team_slug || c.squad_name || c.team_name;
+      const sq = c.squad || c.unit || c.team || c.team_slug || c.squad_name || c.team_name;
       if (sq) set.add(sq);
     });
 
@@ -325,7 +329,7 @@ export default function PageClients({ session }) {
   const filtered = useMemo(() => {
     const query = normalizeText(q.trim());
     const list = clients.filter((client) => {
-      const matchesQuery = !query || [client.name, client.company, client.legal_name, client.cnpj]
+      const matchesQuery = !query || [client.name, client.company, client.legal_name, client.cnpj, client.squad, client.unit, client.quiz, client.lps]
         .filter(Boolean)
         .some((value) => normalizeText(value).includes(query));
 
@@ -338,10 +342,20 @@ export default function PageClients({ session }) {
         || (integrationFilter === "with-typebot" && bots > 0)
         || (integrationFilter === "without-typebot" && bots === 0);
 
-      const clientSquad = (client.squad || client.team || client.team_slug || client.squad_name || client.team_name || "").toLowerCase();
+      const clientSquad = (client.squad || client.unit || client.team || client.team_slug || client.squad_name || client.team_name || "").toLowerCase();
       const matchesSquad = squadFilter === "all" || clientSquad === squadFilter.toLowerCase();
 
-      return matchesQuery && matchesStatus && matchesIntegration && matchesSquad;
+      const hasQuiz = Boolean(client.quiz && client.quiz !== "—" && client.quiz !== "0") || Number(client.quiz_bots_count || 0) > 0;
+      const matchesQuiz = quizFilter === "all"
+        || (quizFilter === "with-quiz" && hasQuiz)
+        || (quizFilter === "without-quiz" && !hasQuiz);
+
+      const hasLps = Boolean(client.lps && client.lps !== "—" && client.lps !== "0") || Number(client.lp_bots_count || 0) > 0;
+      const matchesLps = lpsFilter === "all"
+        || (lpsFilter === "with-lps" && hasLps)
+        || (lpsFilter === "without-lps" && !hasLps);
+
+      return matchesQuery && matchesStatus && matchesIntegration && matchesSquad && matchesQuiz && matchesLps;
     });
 
     return [...list].sort((a, b) => {
@@ -349,21 +363,31 @@ export default function PageClients({ session }) {
       if (sortBy === "automations") result = Number(b.totalWorkflows || 0) - Number(a.totalWorkflows || 0);
       else if (sortBy === "bots") result = Number(b.totalTypebots || 0) - Number(a.totalTypebots || 0);
       else if (sortBy === "status") result = String(a.status || "").localeCompare(String(b.status || ""));
+      else if (sortBy === "squad") {
+        const sqA = a.squad || a.unit || "";
+        const sqB = b.squad || b.unit || "";
+        result = sqA.localeCompare(sqB);
+      }
+      else if (sortBy === "quiz") {
+        const qA = String(a.quiz || a.quiz_bots_count || "");
+        const qB = String(b.quiz || b.quiz_bots_count || "");
+        result = qA.localeCompare(qB, undefined, { numeric: true });
+      }
+      else if (sortBy === "lps") {
+        const lpA = String(a.lps || a.lp_bots_count || "");
+        const lpB = String(b.lps || b.lp_bots_count || "");
+        result = lpA.localeCompare(lpB, undefined, { numeric: true });
+      }
       else if (sortBy === "accesses") {
         const accA = a.accessesCount ?? parseAccesses(a.notes).length;
         const accB = b.accessesCount ?? parseAccesses(b.notes).length;
         result = accB - accA;
       }
-      else if (sortBy === "updatedAt") {
-        const da = new Date(a.updatedAt || a.updated_at || 0);
-        const db = new Date(b.updatedAt || b.updated_at || 0);
-        result = db.getTime() - da.getTime(); // default is newest first
-      }
       else result = String(a.name || "").localeCompare(String(b.name || ""));
 
       return sortOrder === "desc" ? -result : result;
     });
-  }, [q, clients, statusFilter, integrationFilter, squadFilter, sortBy, sortOrder]);
+  }, [q, clients, statusFilter, integrationFilter, squadFilter, quizFilter, lpsFilter, sortBy, sortOrder]);
 
   // Cards always reflect the FILTERED list so they update in real-time with filters
   const summary = useMemo(() => {
@@ -388,13 +412,16 @@ export default function PageClients({ session }) {
       const payload = {
         name: formData.name.trim(),
         legalName: formData.company.trim() || null,
-        unit: formData.company.trim() || null,
+        unit: formData.squad.trim() || formData.company.trim() || null,
+        squad: formData.squad.trim() || null,
+        quiz: formData.quiz.trim() || null,
+        lps: formData.lps.trim() || null,
         status: formData.status,
       };
       const newClient = await api.createClient(payload);
       setClients((prev) => [newClient, ...prev]);
       setShowCreateModal(false);
-      setFormData({ name: "", company: "", status: "active" });
+      setFormData({ name: "", company: "", squad: "", quiz: "", lps: "", status: "active" });
     } catch (e) {
       alert(e.message || "Erro ao criar cliente.");
     } finally {
@@ -464,6 +491,10 @@ export default function PageClients({ session }) {
           setTempIntegration("all");
           setSquadFilter("all");
           setTempSquad("all");
+          setQuizFilter("all");
+          setTempQuiz("all");
+          setLpsFilter("all");
+          setTempLps("all");
           setSortBy("name");
           setSortOrder("asc");
           setTempSortBy("name");
@@ -539,6 +570,21 @@ export default function PageClients({ session }) {
             <div className="client-hero__meta">
               {clientDetail.company && <span>{clientDetail.company}</span>}
               <Badge status={clientDetail.status} type="client" />
+              {(clientDetail.squad || clientDetail.unit) && (
+                <span className="badge badge--default" style={{ fontWeight: 600, fontSize: "12px", border: "1px solid var(--border)" }}>
+                  Squad: {clientDetail.squad || clientDetail.unit}
+                </span>
+              )}
+              {clientDetail.quiz && clientDetail.quiz !== "—" && (
+                <span className="badge" style={{ background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontWeight: 600, border: "1px solid rgba(59, 130, 246, 0.2)" }}>
+                  Quiz: {clientDetail.quiz}
+                </span>
+              )}
+              {clientDetail.lps && clientDetail.lps !== "—" && (
+                <span className="badge" style={{ background: "rgba(168, 85, 247, 0.1)", color: "#a855f7", fontWeight: 600, border: "1px solid rgba(168, 85, 247, 0.2)" }}>
+                  LPs: {clientDetail.lps}
+                </span>
+              )}
             </div>
           </div>
           <div className="client-hero__score">
@@ -1106,8 +1152,9 @@ export default function PageClients({ session }) {
         </section>
       )}
 
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
-        <div className="search-wrap" style={{ flex: '1 1 200px', minWidth: '160px', maxWidth: '320px' }}>
+      {/* Search & Actions Bar */}
+      <div className="toolbar" style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '4px' }}>
+        <div className="search-wrap" style={{ flex: showFilters ? '0 0 180px' : '0 1 280px', minWidth: '150px', transition: 'all 0.2s ease' }}>
           <span className="si"><Icons.Search /></span>
           <input 
             className="search-input" 
@@ -1115,6 +1162,7 @@ export default function PageClients({ session }) {
             value={tempSearch} 
             onChange={(event) => setTempSearch(event.target.value)} 
             onKeyDown={(e) => { if (e.key === 'Enter') setQ(tempSearch); }}
+            style={{ width: "100%", height: "36px" }}
           />
         </div>
         
@@ -1122,7 +1170,7 @@ export default function PageClients({ session }) {
           type="button" 
           className="btn btn--primary btn--sm"
           onClick={() => setQ(tempSearch)}
-          style={{ gap: '6px' }}
+          style={{ gap: '6px', height: '36px', flexShrink: 0 }}
         >
           Pesquisar
         </button>
@@ -1131,31 +1179,65 @@ export default function PageClients({ session }) {
           type="button" 
           className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
           onClick={() => setShowFilters(!showFilters)}
-          style={{ gap: '6px' }}
+          style={{ gap: '6px', height: '36px', flexShrink: 0 }}
         >
           Filtros Avançados
         </button>
 
         {showFilters && (
-          <div className="filters-inline-float">
+          <div className="filters-inline-float" style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1, minWidth: 0 }}>
             <select
               className="editor-sidebar__select select--sm"
               value={tempStatus}
               onChange={(e) => setTempStatus(e.target.value)}
-              style={{ minWidth: '140px' }}
+              style={{ flex: 1, minWidth: '110px', height: '36px' }}
             >
-              <option value="all">Todos os status</option>
+              <option value="all">Status: Todos</option>
               <option value="active">Ativo</option>
               <option value="inactive">Inativo</option>
             </select>
 
             <select
               className="editor-sidebar__select select--sm"
+              value={tempSquad}
+              onChange={(e) => setTempSquad(e.target.value)}
+              style={{ flex: 1, minWidth: '120px', height: '36px' }}
+            >
+              <option value="all">Squad: Todos</option>
+              {squadOptions.map(squad => (
+                <option key={squad} value={squad}>{squad}</option>
+              ))}
+            </select>
+
+            <select
+              className="editor-sidebar__select select--sm"
+              value={tempQuiz}
+              onChange={(e) => setTempQuiz(e.target.value)}
+              style={{ flex: 1, minWidth: '110px', height: '36px' }}
+            >
+              <option value="all">Quiz: Todos</option>
+              <option value="with-quiz">Com Quiz</option>
+              <option value="without-quiz">Sem Quiz</option>
+            </select>
+
+            <select
+              className="editor-sidebar__select select--sm"
+              value={tempLps}
+              onChange={(e) => setTempLps(e.target.value)}
+              style={{ flex: 1, minWidth: '110px', height: '36px' }}
+            >
+              <option value="all">LPs: Todas</option>
+              <option value="with-lps">Com LPs</option>
+              <option value="without-lps">Sem LPs</option>
+            </select>
+
+            <select
+              className="editor-sidebar__select select--sm"
               value={tempIntegration}
               onChange={(e) => setTempIntegration(e.target.value)}
-              style={{ minWidth: '160px' }}
+              style={{ flex: 1, minWidth: '120px', height: '36px' }}
             >
-              <option value="all">Todas as integrações</option>
+              <option value="all">Integrações: Todas</option>
               <option value="with-n8n">Com Automação</option>
               <option value="without-n8n">Sem Automação</option>
               <option value="with-typebot">Com Bots</option>
@@ -1164,25 +1246,16 @@ export default function PageClients({ session }) {
 
             <select
               className="editor-sidebar__select select--sm"
-              value={tempSquad}
-              onChange={(e) => setTempSquad(e.target.value)}
-              style={{ minWidth: '140px' }}
-            >
-              <option value="all">Todos os Squads</option>
-              {squadOptions.map(squad => (
-                <option key={squad} value={squad}>{squad}</option>
-              ))}
-            </select>
-
-            <select
-              className="editor-sidebar__select select--sm"
               value={tempSortBy}
               onChange={(e) => setTempSortBy(e.target.value)}
-              style={{ minWidth: '140px' }}
+              style={{ flex: 1, minWidth: '120px', height: '36px' }}
             >
               <option value="name">Ordenar: Nome</option>
+              <option value="squad">Ordenar: Squad</option>
               <option value="automations">Mais automações</option>
               <option value="bots">Mais bots</option>
+              <option value="quiz">Mais Quiz</option>
+              <option value="lps">Mais LPs</option>
               <option value="status">Por status</option>
             </select>
 
@@ -1194,17 +1267,21 @@ export default function PageClients({ session }) {
                 setQ("");
                 setTempStatus("all");
                 setStatusFilter("all");
-                setTempIntegration("all");
-                setIntegrationFilter("all");
                 setTempSquad("all");
                 setSquadFilter("all");
+                setTempQuiz("all");
+                setQuizFilter("all");
+                setTempLps("all");
+                setLpsFilter("all");
+                setTempIntegration("all");
+                setIntegrationFilter("all");
                 setTempSortBy("name");
                 setSortBy("name");
                 setSortOrder("asc");
               }}
-              style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
+              style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)', height: '36px', flexShrink: 0 }}
             >
-              Limpar Filtros
+              Limpar
             </button>
 
             <button 
@@ -1213,10 +1290,13 @@ export default function PageClients({ session }) {
               onClick={() => {
                 setQ(tempSearch);
                 setStatusFilter(tempStatus);
-                setIntegrationFilter(tempIntegration);
                 setSquadFilter(tempSquad);
+                setQuizFilter(tempQuiz);
+                setLpsFilter(tempLps);
+                setIntegrationFilter(tempIntegration);
                 setSortBy(tempSortBy);
               }}
+              style={{ gap: '6px', height: '36px', flexShrink: 0 }}
             >
               Filtrar
             </button>
@@ -1270,6 +1350,20 @@ export default function PageClients({ session }) {
                 </th>
                 <th 
                   onClick={() => {
+                    if (sortBy === "squad") {
+                      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                    } else {
+                      setSortBy("squad");
+                      setSortOrder("asc");
+                    }
+                  }}
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                  title="Ordenar por Squad"
+                >
+                  Squad {sortBy === "squad" && (sortOrder === "asc" ? "↑" : "↓")}
+                </th>
+                <th 
+                  onClick={() => {
                     if (sortBy === "automations") {
                       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
                     } else {
@@ -1298,6 +1392,34 @@ export default function PageClients({ session }) {
                 </th>
                 <th 
                   onClick={() => {
+                    if (sortBy === "quiz") {
+                      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                    } else {
+                      setSortBy("quiz");
+                      setSortOrder("desc");
+                    }
+                  }}
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                  title="Ordenar por Quiz"
+                >
+                  Quiz {sortBy === "quiz" && (sortOrder === "asc" ? "↑" : "↓")}
+                </th>
+                <th 
+                  onClick={() => {
+                    if (sortBy === "lps") {
+                      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                    } else {
+                      setSortBy("lps");
+                      setSortOrder("desc");
+                    }
+                  }}
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                  title="Ordenar por LPs"
+                >
+                  LPs {sortBy === "lps" && (sortOrder === "asc" ? "↑" : "↓")}
+                </th>
+                <th 
+                  onClick={() => {
                     if (sortBy === "accesses") {
                       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
                     } else {
@@ -1309,20 +1431,6 @@ export default function PageClients({ session }) {
                   title="Ordenar por Acessos"
                 >
                   Acessos {sortBy === "accesses" && (sortOrder === "asc" ? "↓" : "↑")}
-                </th>
-                <th 
-                  onClick={() => {
-                    if (sortBy === "updatedAt") {
-                      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-                    } else {
-                      setSortBy("updatedAt");
-                      setSortOrder("asc"); // asc here means newest first since we used db.getTime() - da.getTime()
-                    }
-                  }}
-                  style={{ cursor: "pointer", userSelect: "none" }}
-                  title="Ordenar por Atualização"
-                >
-                  Atualização {sortBy === "updatedAt" && (sortOrder === "asc" ? "↓" : "↑")}
                 </th>
                 <th style={{ textAlign: "right" }}>Ação</th>
               </tr>
@@ -1336,6 +1444,15 @@ export default function PageClients({ session }) {
                   </td>
                   <td><Badge status={client.status} type="client" /></td>
                   <td>
+                    {client.squad || client.unit ? (
+                      <span className="badge badge--default" style={{ fontWeight: 600, fontSize: "12px", border: "1px solid var(--border)" }}>
+                        {client.squad || client.unit}
+                      </span>
+                    ) : (
+                      <span className="muted-cell">—</span>
+                    )}
+                  </td>
+                  <td>
                     <strong>{client.activeWorkflows || 0}</strong>
                     <span className="muted-cell"> / {client.totalWorkflows || 0}</span>
                   </td>
@@ -1343,11 +1460,36 @@ export default function PageClients({ session }) {
                     <strong>{client.activeTypebots || 0}</strong>
                     <span className="muted-cell"> / {client.totalTypebots || 0}</span>
                   </td>
+                  <td>
+                    {client.quiz && client.quiz !== "—" ? (
+                      <span className="badge" style={{ background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontWeight: 600, border: "1px solid rgba(59, 130, 246, 0.2)" }}>
+                        {client.quiz}
+                      </span>
+                    ) : Number(client.quiz_bots_count) > 0 ? (
+                      <span className="badge" style={{ background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontWeight: 600, border: "1px solid rgba(59, 130, 246, 0.2)" }}>
+                        {client.quiz_bots_count}
+                      </span>
+                    ) : (
+                      <span className="muted-cell">—</span>
+                    )}
+                  </td>
+                  <td>
+                    {client.lps && client.lps !== "—" ? (
+                      <span className="badge" style={{ background: "rgba(168, 85, 247, 0.1)", color: "#a855f7", fontWeight: 600, border: "1px solid rgba(168, 85, 247, 0.2)" }}>
+                        {client.lps}
+                      </span>
+                    ) : Number(client.lp_bots_count) > 0 ? (
+                      <span className="badge" style={{ background: "rgba(168, 85, 247, 0.1)", color: "#a855f7", fontWeight: 600, border: "1px solid rgba(168, 85, 247, 0.2)" }}>
+                        {client.lp_bots_count}
+                      </span>
+                    ) : (
+                      <span className="muted-cell">—</span>
+                    )}
+                  </td>
                   <td><strong>{client.accessesCount ?? parseAccesses(client.notes).length}</strong></td>
-                  <td className="muted-cell">{client.updatedAt || client.updated_at ? new Date(client.updatedAt || client.updated_at).toLocaleDateString() : "—"}</td>
                   <td style={{ textAlign: "right" }}>
                     <button 
-                      className="btn btn--outline" 
+                      className="btn btn--outline btn--sm" 
                       onClick={(event) => { event.stopPropagation(); handleOpenClient(client.id); }}
                     >
                       Acessar →
@@ -1376,6 +1518,23 @@ export default function PageClients({ session }) {
                 <label>
                   <span className="editor-sidebar__label">Nome fantasia / unidade</span>
                   <input className="editor-sidebar__input" value={formData.company} onChange={(event) => setFormData({ ...formData, company: event.target.value })} placeholder="Ex: Matriz SP" />
+                </label>
+                <label>
+                  <span className="editor-sidebar__label">Squad</span>
+                  <select className="editor-sidebar__select" value={formData.squad} onChange={(event) => setFormData({ ...formData, squad: event.target.value })}>
+                    <option value="">Selecione um Squad...</option>
+                    {squadOptions.map(sq => (
+                      <option key={sq} value={sq}>{sq}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span className="editor-sidebar__label">Quiz</span>
+                  <input className="editor-sidebar__input" value={formData.quiz} onChange={(event) => setFormData({ ...formData, quiz: event.target.value })} placeholder="Ex: 1 ou Ativo" />
+                </label>
+                <label>
+                  <span className="editor-sidebar__label">LPs (Landing Pages)</span>
+                  <input className="editor-sidebar__input" value={formData.lps} onChange={(event) => setFormData({ ...formData, lps: event.target.value })} placeholder="Ex: 2 ou Ativa" />
                 </label>
                 <label>
                   <span className="editor-sidebar__label">Status</span>

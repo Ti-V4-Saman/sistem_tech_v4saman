@@ -124,12 +124,19 @@ function mapClient(row = {}) {
   const activeTypebots = Number(row.activeTypebots ?? row.active_typebots ?? row.published_bots ?? 0);
   const totalTypebots = Number(row.totalTypebots ?? row.total_typebots ?? row.total_bots ?? 0);
   const accessesCount = row.notes !== undefined ? parseAccesses(row.notes).length : (row.accessesCount ?? 0);
+  const squad = row.squad || row.unit || row.team || row.team_slug || row.squad_name || "";
+  const quiz = row.quiz || (Number(row.quiz_bots_count) > 0 ? `${row.quiz_bots_count}` : "");
+  const lps = row.lps || (Number(row.lp_bots_count) > 0 ? `${row.lp_bots_count}` : "");
 
   return {
     ...row,
     id: row.id,
     name: row.name || "Sem nome",
     company: row.company || row.unit || row.legal_name || "",
+    squad,
+    unit: row.unit || squad,
+    quiz,
+    lps,
     fee: row.fee ?? row.fee_amount ?? null,
     healthScore: row.healthScore ?? row.health_score ?? null,
     updatedAt: row.updatedAt || formatDateTime(row.updated_at),

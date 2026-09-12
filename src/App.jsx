@@ -17,6 +17,7 @@ const PageHelp = lazy(() => import("./pages/Help/PageHelp"));
 const PageTelephony = lazy(() => import("./pages/Telephony/PageTelephony"));
 const PageFlowTemplates = lazy(() => import("./pages/FlowTemplates/PageFlowTemplates"));
 const PageAlerts = lazy(() => import("./pages/Alerts/PageAlerts"));
+const PageAboutUs = lazy(() => import("./pages/AboutUs/PageAboutUs"));
 import LoginScreen from "./pages/Login/LoginScreen";
 import { CommandPalette } from "./components/app/CommandPalette";
 
@@ -25,6 +26,7 @@ const NAV = [
   { id: "dashboard", path: "/dashboard", label: "Visão Geral", icon: () => <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" /></svg> },
   { id: "clients", path: "/clientes", label: "Clientes", icon: <Icons.Users /> },
   { id: "docs", path: "/documentos", label: "Documentos", icon: <Icons.Doc /> },
+  { id: "about", path: "/sobre-nos", label: "Sobre Nós", icon: <Icons.Sparkles /> },
   { id: "telephony", path: "/telefonia", label: "Telefonia", icon: <Icons.Phone />, isAdminOnly: true },
   { id: "flows", path: "/fluxos", label: "Modelos de Fluxos", icon: <Icons.Zap />, isAdminOnly: true, isDev: true },
   { id: "alerts", path: "/alertas", label: "Alertas", icon: <Icons.Bell />, isAdminOnly: true },
@@ -40,6 +42,7 @@ export default function App() {
     if (current) return current.id;
     if (location.pathname === "/configuracoes") return "settings";
     if (location.pathname === "/perfil") return "profile";
+    if (location.pathname === "/sobre-nos") return "about";
     return "home";
   };
   const page = getCurrentPageId();
@@ -136,6 +139,7 @@ export default function App() {
     if (navItem) targetPath = navItem.path;
     else if (targetPage === "settings") targetPath = "/configuracoes";
     else if (targetPage === "profile") targetPath = "/perfil";
+    else if (targetPage === "about") targetPath = "/sobre-nos";
     else if (targetPage === "home") targetPath = "/";
 
     navigate(targetPath);
@@ -455,6 +459,7 @@ export default function App() {
                 <Route path="/dashboard" element={<PageDashboard setPage={navigateTo} isAdmin={isAdmin} />} />
                 <Route path="/clientes" element={<PageClients session={session} />} />
                 <Route path="/documentos" element={<PageDocuments session={session} />} />
+                <Route path="/sobre-nos" element={<PageAboutUs session={session} setPage={navigateTo} />} />
                 <Route path="/telefonia" element={isSuperAdmin ? <PageTelephony permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                 <Route path="/fluxos" element={isSuperAdmin ? <PageFlowTemplates permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                 <Route path="/alertas" element={isSuperAdmin ? <PageAlerts permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />

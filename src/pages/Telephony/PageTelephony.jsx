@@ -222,8 +222,8 @@ export default function PageTelephony({ permissions = [] }) {
       )}
 
       {/* Barra de Busca e Filtros Horizontais */}
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
-        <div className="search-wrap" style={{ flex: '0 1 260px', minWidth: '180px' }}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', marginBottom: '20px', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '4px' }}>
+        <div className="search-wrap" style={{ flex: showFilters ? '0 0 220px' : '0 1 320px', minWidth: '180px', transition: 'all 0.2s ease' }}>
           <span className="si" style={{ paddingLeft: '12px', display: 'flex', alignItems: 'center' }}>🔍</span>
           <input 
             type="text" 
@@ -235,7 +235,7 @@ export default function PageTelephony({ permissions = [] }) {
               if (e.target.value === "") setSearch("");
             }} 
             onKeyDown={(e) => { if (e.key === 'Enter') setSearch(tempSearch); }}
-            style={{ width: "100%", paddingLeft: "36px" }}
+            style={{ width: "100%", height: "36px", paddingLeft: "36px" }}
           />
         </div>
 
@@ -243,7 +243,7 @@ export default function PageTelephony({ permissions = [] }) {
           type="button" 
           className="btn btn--primary btn--sm" 
           onClick={() => setSearch(tempSearch)}
-          style={{ gap: '6px' }}
+          style={{ gap: '6px', height: '36px', flexShrink: 0 }}
         >
           Pesquisar
         </button>
@@ -252,7 +252,7 @@ export default function PageTelephony({ permissions = [] }) {
           type="button" 
           className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
           onClick={() => setShowFilters(!showFilters)}
-          style={{ gap: '6px', alignItems: 'center', display: 'inline-flex' }}
+          style={{ gap: '6px', alignItems: 'center', display: 'inline-flex', height: '36px', flexShrink: 0 }}
         >
           <span>Filtros Avançados</span>
           {activeFiltersCount > 0 && (
@@ -271,10 +271,10 @@ export default function PageTelephony({ permissions = [] }) {
         </button>
 
         {showFilters && (
-          <div className="filters-inline-float" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="filters-inline-float" style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1, minWidth: 0 }}>
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '140px', width: 'auto' }}
+              style={{ flex: 1, minWidth: '120px', height: '36px' }}
               value={category} 
               onChange={e => setCategory(e.target.value)}
             >
@@ -286,7 +286,7 @@ export default function PageTelephony({ permissions = [] }) {
 
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '140px', width: 'auto' }}
+              style={{ flex: 1, minWidth: '120px', height: '36px' }}
               value={status} 
               onChange={e => setStatus(e.target.value)}
             >
@@ -298,7 +298,7 @@ export default function PageTelephony({ permissions = [] }) {
 
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '150px', width: 'auto' }}
+              style={{ flex: 1, minWidth: '120px', height: '36px' }}
               value={team} 
               onChange={e => setTeam(e.target.value)}
             >
@@ -309,7 +309,7 @@ export default function PageTelephony({ permissions = [] }) {
 
             <select 
               className="editor-sidebar__select select--sm"
-              style={{ minWidth: '150px', width: 'auto' }}
+              style={{ flex: 1, minWidth: '120px', height: '36px' }}
               value={sector} 
               onChange={e => setSector(e.target.value)}
             >
@@ -330,7 +330,7 @@ export default function PageTelephony({ permissions = [] }) {
                   setTeam("");
                   setSector("");
                 }}
-                style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.2)' }}
+                style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.2)', height: '36px', flexShrink: 0 }}
               >
                 ✕ Limpar
               </button>

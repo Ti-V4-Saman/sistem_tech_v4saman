@@ -94,6 +94,8 @@ clientRoutes.get('/', requirePermission('clients.view'), asyncHandler(async (req
             END AS status,
             c.fee_amount,
             c.unit,
+            c.quiz,
+            c.lps,
             c.health_score,
             c.started_at,
             c.last_review_at,
@@ -103,6 +105,8 @@ clientRoutes.get('/', requirePermission('clients.view'), asyncHandler(async (req
             COUNT(DISTINCT CASE WHEN a.status = 'active' OR a.is_active = 1 THEN a.id END) AS active_automations,
             COUNT(DISTINCT b.id) AS total_bots,
             COUNT(DISTINCT CASE WHEN b.status = 'active' OR b.is_published = 1 THEN b.id END) AS published_bots,
+            COUNT(DISTINCT CASE WHEN LOWER(b.name) LIKE '%quiz%' THEN b.id END) AS quiz_bots_count,
+            COUNT(DISTINCT CASE WHEN LOWER(b.name) LIKE '%lp%' OR LOWER(b.name) LIKE '%landing%' THEN b.id END) AS lp_bots_count,
             COALESCE(rs.total_runs, 0) AS total_runs,
             COALESCE(rs.success_runs, 0) AS success_runs,
             COALESCE(rs.error_runs, 0) AS error_runs,
@@ -122,7 +126,7 @@ clientRoutes.get('/', requirePermission('clients.view'), asyncHandler(async (req
            GROUP BY a.client_id
        ) rs ON rs.client_id = c.id
       ${where}
-      GROUP BY c.id, c.name, c.legal_name, c.cnpj, c.status, c.fee_amount, c.unit, c.health_score, c.started_at, c.last_review_at, c.created_at, c.updated_at, c.notes, rs.total_runs, rs.success_runs, rs.error_runs
+      GROUP BY c.id, c.name, c.legal_name, c.cnpj, c.status, c.fee_amount, c.unit, c.quiz, c.lps, c.health_score, c.started_at, c.last_review_at, c.created_at, c.updated_at, c.notes, rs.total_runs, rs.success_runs, rs.error_runs
       ORDER BY c.name ASC
       LIMIT ${limit} OFFSET ${offset}`,
     params
@@ -157,14 +161,14 @@ clientRoutes.get('/', requirePermission('clients.view'), asyncHandler(async (req
 }));
 
 clientRoutes.post('/', requirePermission('clients.create'), audit('client', 'create'), asyncHandler(async (req, res) => {
-  const { name, legalName, cnpj, status = 'active', feeAmount, unit, notes } = req.body || {};
+  const { name, legalName, cnpj, status = 'active', feeAmount, unit, quiz, lps, notes } = req.body || {};
   if (!name) throw new HttpError(400, 'Client name is required.');
 
   const id = createId();
   await query(
-    `INSERT INTO clients (id, organization_id, name, legal_name, cnpj, status, fee_amount, unit, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, req.user.organization_id, name, legalName || null, cnpj || null, status, feeAmount || null, unit || null, notes || null]
+    `INSERT INTO clients (id, organization_id, name, legal_name, cnpj, status, fee_amount, unit, quiz, lps, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, req.user.organization_id, name, legalName || null, cnpj || null, status, feeAmount || null, unit || null, quiz || null, lps || null, notes || null]
   );
 
   const { rows } = await query(`SELECT * FROM clients WHERE id = ?`, [id]);
@@ -197,11 +201,11 @@ clientRoutes.patch('/:id', requirePermission('clients.update'), audit('client', 
 
   const previous = current.rows[0];
   res.locals.auditBefore = previous;
-  const { name, legalName, cnpj, status, feeAmount, unit, notes, healthScore } = req.body || {};
+  const { name, legalName, cnpj, status, feeAmount, unit, quiz, lps, notes, healthScore } = req.body || {};
 
   await query(
     `UPDATE clients
-        SET name = ?, legal_name = ?, cnpj = ?, status = ?, fee_amount = ?, unit = ?, notes = ?, health_score = ?, updated_at = CURRENT_TIMESTAMP
+        SET name = ?, legal_name = ?, cnpj = ?, status = ?, fee_amount = ?, unit = ?, quiz = ?, lps = ?, notes = ?, health_score = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND organization_id = ?`,
     [
       name ?? previous.name,
@@ -210,6 +214,8 @@ clientRoutes.patch('/:id', requirePermission('clients.update'), audit('client', 
       status ?? previous.status,
       feeAmount ?? previous.fee_amount,
       unit ?? previous.unit,
+      quiz ?? previous.quiz,
+      lps ?? previous.lps,
       notes ?? previous.notes,
       healthScore ?? previous.health_score,
       req.params.id,

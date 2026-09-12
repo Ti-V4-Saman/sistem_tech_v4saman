@@ -7,6 +7,7 @@ const BASE_COMMANDS = [
   { id: "page-dashboard", label: "Ir para Visão Geral", description: "Dashboard executivo", page: "dashboard", icon: "📊" },
   { id: "page-clients", label: "Ir para Clientes", description: "Base de clientes e integrações", page: "clients", icon: "👥" },
   { id: "page-docs", label: "Ir para Documentos", description: "Base de conhecimento", page: "docs", icon: "📖" },
+  { id: "page-about", label: "Ir para Sobre Nós", description: "Cultura, Brio e princípios operacionais", page: "about", icon: "✨" },
   { id: "page-profile", label: "Abrir Minha Conta", description: "Perfil do usuário", page: "profile", icon: "👤" },
 ];
 
