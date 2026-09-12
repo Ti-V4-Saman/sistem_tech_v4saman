@@ -93,25 +93,56 @@ const clientSquads = {
   "Tecar": "Snipers",
   "Dr Bruno (Implantes Prime)": "Snipers",
   "CDI Implantes": "Snipers",
-  "Alessandra Pardini": "Snipers"
+  "Alessandra Pardini": "Snipers",
+  "ART Figueroa": "Snipers",
+  "Art Figueroa": "Snipers",
+  "Autoville": "Seals",
+  "Hyundai Autoville": "Seals",
+  "Casa Floresta": "Snipers",
+  "O Casa Floresta": "Snipers",
+  "CDI Implants": "Snipers",
+  "CDI Implantes": "Snipers",
+  "Clínica Eviva": "Seals",
+  "Clinica Eviva": "Seals",
+  "Edson Pipas & Fogos": "Seals",
+  "Edson Pipas e Fogos": "Seals",
+  "Ekyte": "Seals",
+  "Ekyte Software": "Seals",
+  "GET Empréstimos": "Seals",
+  "Get Emprestimos": "Seals",
+  "HGMAX": "Seals",
+  "Hgmax": "Seals",
+  "Impacto Acadêmico": "Snipers",
+  "Impacto Academico": "Snipers",
+  "Implantes Prime": "Snipers",
+  "Dr Bruno (Implantes Prime)": "Snipers",
+  "Dr Bruno Implantes": "Snipers",
+  "Logro Soft": "Snipers",
+  "Logrosoft": "Snipers",
+  "Lointer": "Genius",
+  "Lointer Software": "Genius",
+  "Pirikito Tennis": "Seals",
+  "Pirikito Tênis": "Seals",
+  "QMAIS Vendas": "Snipers",
+  "Qmais Vendas": "Snipers",
+  "ROLP": "Snipers",
+  "Rolp": "Snipers",
+  "Trevisan": "Genius",
+  "De Melo Trevisan": "Genius"
 };
 
 async function updateSquads() {
-  console.log('Fetching clients with active technology (n8n or typebot)...');
+  console.log('Fetching all clients...');
   
-  // Find clients that have at least one automation or bot
-  const { rows: techClients } = await query(`
+  const { rows: allClients } = await query(`
     SELECT DISTINCT c.id, c.name, c.legal_name 
     FROM clients c
-    LEFT JOIN automations a ON a.client_id = c.id
-    LEFT JOIN bots b ON b.client_id = c.id
-    WHERE a.id IS NOT NULL OR b.id IS NOT NULL
   `);
 
-  console.log(`Found ${techClients.length} clients in DB with technology.`);
+  console.log(`Found ${allClients.length} clients in DB.`);
   
   let updatedCount = 0;
-  for (const client of techClients) {
+  for (const client of allClients) {
     let squad = clientSquads[client.name] || clientSquads[client.legal_name];
     
     // Also try fuzzy matching
