@@ -51,7 +51,7 @@ export default function PageAdsDashboard() {
     };
   }, [period]);
 
-  useEffect(() => {
+  const fetchDashboardData = () => {
     if (!selectedClientId) return;
     
     setLoadingData(true);
@@ -73,7 +73,10 @@ export default function PageAdsDashboard() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoadingData(false));
+  };
 
+  useEffect(() => {
+    fetchDashboardData();
   }, [selectedClientId, dateRange, activeTab]);
 
   if (loadingClients) return <LoadingSpinner />;
@@ -88,25 +91,26 @@ export default function PageAdsDashboard() {
       />
 
       {/* Filtros */}
-      <div className="card" style={{ padding: '16px', marginBottom: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      <div className="filters-bar" style={{ marginBottom: "24px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", padding: "16px", background: "var(--bg-card)", borderRadius: "var(--r-lg)", border: "1px solid var(--border)" }}>
         <div style={{ flex: 1, minWidth: '200px' }}>
-          <label className="form-label">Cliente</label>
           <select 
-            className="form-input" 
+            className="editor-sidebar__select select--sm" 
             value={selectedClientId} 
             onChange={e => setSelectedClientId(e.target.value)}
+            style={{ width: '100%', height: '36px' }}
           >
+            <option value="">Selecione um cliente...</option>
             {clients.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         </div>
         <div style={{ flex: 1, minWidth: '200px' }}>
-          <label className="form-label">Período</label>
           <select 
-            className="form-input" 
+            className="editor-sidebar__select select--sm" 
             value={period} 
             onChange={e => setPeriod(Number(e.target.value))}
+            style={{ width: '100%', height: '36px' }}
           >
             <option value={7}>Últimos 7 dias</option>
             <option value={14}>Últimos 14 dias</option>
@@ -114,6 +118,15 @@ export default function PageAdsDashboard() {
             <option value={60}>Últimos 60 dias</option>
             <option value={90}>Últimos 90 dias</option>
           </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <button 
+            className="btn btn--primary btn--sm" 
+            onClick={fetchDashboardData} 
+            disabled={!selectedClientData || loadingData}
+          >
+            {loadingData ? 'Atualizando...' : 'Atualizar Dados'}
+          </button>
         </div>
       </div>
 
@@ -124,31 +137,39 @@ export default function PageAdsDashboard() {
       )}
 
       {/* Tabs */}
-      <div className="tabs" style={{ marginBottom: '24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '24px' }}>
-        <button 
-          className={`tab-button ${activeTab === 'overview' ? 'tab-button--active' : ''}`}
+      <div className="playbook-tabs" style={{ marginBottom: '24px' }}>
+        <div 
+          className={`playbook-tab ${activeTab === 'overview' ? 'playbook-tab--active' : ''}`}
           onClick={() => setActiveTab('overview')}
-          style={{ background: 'none', border: 'none', padding: '12px 0', borderBottom: activeTab === 'overview' ? '2px solid var(--color-primary)' : '2px solid transparent', cursor: 'pointer', color: activeTab === 'overview' ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: 600 }}
         >
-          Visão Geral
-        </button>
+          <div className="playbook-tab__icon">
+            <Icons.Activity />
+          </div>
+          <strong>Visão Geral</strong>
+        </div>
+        
         {selectedClientData?.meta_enabled && (
-          <button 
-            className={`tab-button ${activeTab === 'meta' ? 'tab-button--active' : ''}`}
+          <div 
+            className={`playbook-tab ${activeTab === 'meta' ? 'playbook-tab--active' : ''}`}
             onClick={() => setActiveTab('meta')}
-            style={{ background: 'none', border: 'none', padding: '12px 0', borderBottom: activeTab === 'meta' ? '2px solid #1877F2' : '2px solid transparent', cursor: 'pointer', color: activeTab === 'meta' ? '#1877F2' : 'var(--text-muted)', fontWeight: 600 }}
           >
-            Meta Ads
-          </button>
+            <div className="playbook-tab__icon" style={{ background: activeTab === 'meta' ? '#1877F2' : 'rgba(24,119,242,0.1)', color: activeTab === 'meta' ? '#fff' : '#1877F2' }}>
+              <Icons.Target />
+            </div>
+            <strong>Meta Ads</strong>
+          </div>
         )}
+        
         {selectedClientData?.google_enabled && (
-          <button 
-            className={`tab-button ${activeTab === 'google' ? 'tab-button--active' : ''}`}
+          <div 
+            className={`playbook-tab ${activeTab === 'google' ? 'playbook-tab--active' : ''}`}
             onClick={() => setActiveTab('google')}
-            style={{ background: 'none', border: 'none', padding: '12px 0', borderBottom: activeTab === 'google' ? '2px solid #DB4437' : '2px solid transparent', cursor: 'pointer', color: activeTab === 'google' ? '#DB4437' : 'var(--text-muted)', fontWeight: 600 }}
           >
-            Google Ads
-          </button>
+            <div className="playbook-tab__icon" style={{ background: activeTab === 'google' ? '#DB4437' : 'rgba(219,68,55,0.1)', color: activeTab === 'google' ? '#fff' : '#DB4437' }}>
+              <Icons.MousePointer />
+            </div>
+            <strong>Google Ads</strong>
+          </div>
         )}
       </div>
 
