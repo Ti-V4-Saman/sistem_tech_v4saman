@@ -4,6 +4,7 @@ import { api } from "../../services/api";
 import { Icons } from "../../icons/Icons";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { formatDocDate, stripHtml } from "../../utils/formatters";
+import { extractTextFromPDF, extractHtmlFromDOCX, exportToDOCX, exportToPDF } from "../../utils/documentParsers";
 
 // ── DOCUMENT EDITOR ──
 function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag, isAdmin, session }) {
@@ -626,6 +627,16 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
                       {deleting ? "Excluindo..." : "Excluir Documento"}
                     </button>
                   )}
+                  {doc && doc.id && (
+                    <>
+                      <button className="btn btn--outline" onClick={() => exportToDOCX(editorRef.current.innerHTML, title || "Documento")} style={{ marginRight: 8, padding: "6px 12px", fontSize: 13 }}>
+                        Exportar DOCX
+                      </button>
+                      <button className="btn btn--outline" onClick={() => exportToPDF(cardRef.current, title || "Documento")} style={{ marginRight: 8, padding: "6px 12px", fontSize: 13 }}>
+                        Exportar PDF
+                      </button>
+                    </>
+                  )}
                   {canEdit && (
                     <button className="btn btn--primary" onClick={handleSave} disabled={saving} style={{ padding: "6px 20px", fontSize: 13 }}>
                       {saving ? "Salvando..." : "💾 Salvar"}
@@ -842,27 +853,45 @@ export default function PageDocuments({ session }) {
   const handleCreateBlank = async () => { try { const newDoc = await api.createDoc({ title: "Novo Documento", content: "<h1>Novo Documento</h1><p>Comece a escrever aqui...</p>", tags: [], category: "", type: "document" }); setDocs(prev => [newDoc, ...prev]); setShowCreateModal(false); setCreateStep("choose"); setEditingDoc(newDoc); } catch (e) { console.error(e); alert("Erro ao criar documento: " + (e.message || "Erro no servidor.")); } };
   const handleCreateFromTemplate = async (template) => { try { const newDoc = await api.createDoc({ title: template.name, content: template.content, tags: [], category: "", type: "document" }); setDocs(prev => [newDoc, ...prev]); setShowCreateModal(false); setCreateStep("choose"); setEditingDoc(newDoc); } catch (e) { console.error(e); alert("Erro ao criar documento a partir do template: " + (e.message || "Erro no servidor.")); } };
 
-  const handlePdfUpload = async (file) => {
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
     if (!file) return;
-    const isPdf = file.name.toLowerCase().endsWith(".pdf"); const isDocx = file.name.toLowerCase().endsWith(".docx") || file.name.toLowerCase().endsWith(".doc");
+    const isPdf = file.name.toLowerCase().endsWith(".pdf"); 
+    const isDocx = file.name.toLowerCase().endsWith(".docx") || file.name.toLowerCase().endsWith(".doc");
+    
     if (!isPdf && !isDocx) { alert("Por favor, selecione um arquivo no formato PDF ou DOCX."); return; }
+    
     try {
-      const type = isPdf ? "pdf" : "docx"; const cleanName = isPdf ? file.name.replace(/\.pdf$/i, "") : file.name.replace(/\.docx?$/i, "");
-      const icon = isPdf ? "📄" : "📝"; const formatLabel = isPdf ? "PDF" : "Word (DOCX)";
-      let content = `<h1>${cleanName}</h1><p>${icon} Documento ${formatLabel} importado: <strong>${file.name}</strong></p><p>Tamanho: ${(file.size / 1024).toFixed(1)} KB</p><hr/><p><em>O conteúdo do documento foi importado. Edite conforme necessário.</em></p>`;
-      if (isDocx) {
-        content = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = async (e) => { try { const arrayBuffer = e.target.result; const mammoth = await import("mammoth"); const result = await mammoth.default.convertToHtml({ arrayBuffer }); if (result && result.value) { resolve(result.value); } else { resolve(`<h1>${cleanName}</h1><p>Documento Word vazio.</p>`); } } catch (err) { reject(err); } };
-          reader.onerror = (err) => reject(new Error("Erro ao ler o arquivo: " + err.message));
-          reader.readAsArrayBuffer(file);
-        });
+      setLoading(true);
+      const type = isPdf ? "pdf" : "docx"; 
+      const cleanName = file.name.replace(/\.(pdf|docx?)$/i, "");
+      let content = "";
+      
+      if (isPdf) {
+        content = await extractTextFromPDF(file);
+      } else if (isDocx) {
+        content = await extractHtmlFromDOCX(file);
       }
+      
+      if (!content) {
+        content = `<h1>${cleanName}</h1><p>Documento importado não continha texto reconhecível.</p>`;
+      } else {
+        content = `<h1>${cleanName}</h1>${content}`;
+      }
+      
       const newDoc = await api.createDoc({ title: cleanName, content: content, tags: [], category: "", type: type });
-      setDocs(prev => [newDoc, ...prev]); setShowCreateModal(false); setCreateStep("choose"); setPdfFile(null); setEditingDoc(newDoc);
-    } catch (e) { console.error(e); alert("Erro ao importar documento: " + (e.message || "Erro no servidor.")); }
+      setDocs(prev => [newDoc, ...prev]); 
+      setShowCreateModal(false); 
+      setCreateStep("choose"); 
+      setEditingDoc(newDoc);
+    } catch (e) { 
+      console.error(e); 
+      alert("Erro ao importar documento: " + (e.message || "Erro no servidor.")); 
+    } finally {
+      setLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
-
   const handleSaveDoc = async (changes) => { try { const updated = await api.updateDoc(editingDoc.id, changes); setDocs(prev => prev.map(d => d.id === editingDoc.id ? updated : d)); setEditingDoc(updated); } catch (e) { console.error(e); alert("Erro ao salvar documento: " + (e.message || "Erro no servidor.")); } };
   const handleDeleteDoc = async (id) => { try { await api.deleteDoc(id); setDocs(prev => prev.filter(d => d.id !== id)); setEditingDoc(null); } catch (e) { console.error(e); alert("Erro ao excluir documento: " + (e.message || "Verifique se possui permissão ou se o documento existe no banco de dados.")); } };
 
@@ -905,10 +934,23 @@ export default function PageDocuments({ session }) {
           <div className="page-header__subtitle">{loading ? "Carregando..." : `${docs.length} documento${docs.length !== 1 ? "s" : ""} cadastrado${docs.length !== 1 ? "s" : ""}`}</div>
         </div>
         {isAdmin && (
-          <button className="btn btn--primary" onClick={() => { setShowCreateModal(true); setCreateStep("choose"); }}>
-            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-            Novo Documento
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input 
+              type="file" 
+              accept=".pdf,.docx,.doc" 
+              style={{ display: "none" }} 
+              ref={fileInputRef} 
+              onChange={handleImportFile} 
+            />
+            <button className="btn btn--outline" onClick={() => fileInputRef.current?.click()}>
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ marginRight: 6 }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+              Importar DOCX/PDF
+            </button>
+            <button className="btn btn--primary" onClick={() => { setShowCreateModal(true); setCreateStep("choose"); }}>
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+              Novo Documento
+            </button>
+          </div>
         )}
       </div>
 
