@@ -16,7 +16,7 @@ export async function extractTextFromPDF(file) {
     reader.onload = async function () {
       try {
         const typedarray = new Uint8Array(this.result);
-        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+        const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
         let text = "";
         
         for (let i = 1; i <= pdf.numPages; i++) {

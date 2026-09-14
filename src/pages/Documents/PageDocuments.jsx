@@ -1035,7 +1035,7 @@ export default function PageDocuments({ session }) {
             </button>
 
             {showFilters && (
-              <div className="filters-inline-float">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <div className="doc-controls" style={{ display: 'flex', gap: '8px' }}>
                   <button 
                     className={`sort-btn ${tempSortBy === "date" ? "sort-btn--active" : ""}`} 
@@ -1143,6 +1143,35 @@ export default function PageDocuments({ session }) {
                       <div className="doc-card__tags">
                         {doc.tags?.slice(0, 3).map(tag => (<span key={tag} className="tag-chip tag-chip--sm" style={{ background: getTagColor(tag) + "15", color: getTagColor(tag) }}>{tag}</span>))}
                         {doc.tags?.length > 3 && (<span className="tag-chip tag-chip--sm" style={{ background: "var(--bg-secondary)", color: "var(--text-muted)" }}>+{doc.tags.length - 3}</span>)}
+                        
+                        {(isAdmin || doc.authorUserId === session?.user?.id) && (
+                          <div style={{ position: "relative", display: "inline-block", marginLeft: "4px" }} onClick={e => e.stopPropagation()}>
+                            <select 
+                              title="Adicionar Tag"
+                              style={{
+                                appearance: "none", width: 22, height: 22, borderRadius: "50%", background: "var(--bg-secondary)", color: "var(--text-muted)", border: "1px dashed var(--border)", cursor: "pointer", textAlign: "center", fontSize: "14px", fontWeight: "bold", padding: 0
+                              }}
+                              onChange={async (e) => {
+                                if (!e.target.value) return;
+                                const newTag = e.target.value;
+                                const currentTags = doc.tags || [];
+                                if (!currentTags.includes(newTag)) {
+                                  const updatedTags = [...currentTags, newTag];
+                                  try {
+                                    await api.updateDoc(doc.id, { tags: updatedTags });
+                                    setDocs(prev => prev.map(d => d.id === doc.id ? { ...d, tags: updatedTags } : d));
+                                  } catch(err) { console.error(err); }
+                                }
+                                e.target.value = "";
+                              }}
+                            >
+                              <option value="">+</option>
+                              {tags.filter(t => !(doc.tags || []).includes(t.name)).map(t => (
+                                <option key={t.id || t.name} value={t.name}>{t.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <div className="doc-card__status">{statusBadge(doc.status)}</div>
