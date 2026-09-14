@@ -22,8 +22,47 @@ export async function extractTextFromPDF(file) {
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
-          const pageText = textContent.items.map(item => item.str).join(" ");
-          text += `<p>${pageText}</p>`;
+          
+          const tolerance = 5;
+          const lines = [];
+          
+          textContent.items.forEach(item => {
+            if (!item.transform) return;
+            const y = Math.round(item.transform[5]);
+            const x = Math.round(item.transform[4]);
+            
+            let foundLine = lines.find(l => Math.abs(l.y - y) < tolerance);
+            if (!foundLine) {
+              foundLine = { y, items: [] };
+              lines.push(foundLine);
+            }
+            foundLine.items.push({ x, str: item.str, width: item.width });
+          });
+          
+          // PDF.js geralmente tem Y=0 no final da página (cresce de baixo pra cima)
+          lines.sort((a, b) => b.y - a.y);
+          
+          lines.forEach(line => {
+            line.items.sort((a, b) => a.x - b.x);
+            let lineText = "";
+            let lastX = -1;
+            
+            line.items.forEach(item => {
+              if (lastX !== -1 && item.x - lastX > 15) { 
+                lineText += " &nbsp;&nbsp;&nbsp;&nbsp; "; // Gap maior que espaço simples simula coluna
+              } else if (lastX !== -1 && item.x - lastX > 2) {
+                lineText += " ";
+              }
+              lineText += item.str;
+              lastX = item.x + item.width;
+            });
+            
+            if (lineText.trim()) {
+              text += `<p style="margin: 2px 0;">${lineText.trim()}</p>`;
+            }
+          });
+          
+          text += `<hr/>`;
         }
         
         resolve(text);
