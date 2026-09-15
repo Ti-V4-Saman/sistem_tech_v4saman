@@ -20,6 +20,11 @@ export default function PageAdsDashboard() {
   const [period, setPeriod] = useState(30); // days
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'meta', 'google'
   
+  // New Filters
+  const [googleType, setGoogleType] = useState('');
+  const [campaign, setCampaign] = useState('');
+  const [isMaintenanceOpen, setIsMaintenanceOpen] = useState(false);
+  
   const [loadingClients, setLoadingClients] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [error, setError] = useState(null);
@@ -59,6 +64,9 @@ export default function PageAdsDashboard() {
     
     const fetchOverview = api.getAdsOverview(selectedClientId, dateRange.startDate, dateRange.endDate);
     
+    // In a real scenario, we would pass googleType and campaign to these API calls
+    // For now we will just add them to the query in the backend later if needed.
+    
     let fetchDaily = Promise.resolve({ data: [] });
     if (activeTab === 'meta') {
       fetchDaily = api.getAdsDaily(selectedClientId, 'meta', dateRange.startDate, dateRange.endDate);
@@ -88,6 +96,11 @@ export default function PageAdsDashboard() {
       <SectionHeader 
         title="Dashboards de Mídia" 
         subtitle="Performance consolidada de anúncios"
+        right={
+          <button className="btn btn--secondary" onClick={() => setIsMaintenanceOpen(true)}>
+            <Icons.Database /> Manutenção de Dados
+          </button>
+        }
       />
 
       {/* Filtros */}
@@ -119,6 +132,37 @@ export default function PageAdsDashboard() {
             <option value={90}>Últimos 90 dias</option>
           </select>
         </div>
+        
+        {activeTab === 'google' && (
+          <div style={{ flex: 1, minWidth: '150px' }}>
+            <select 
+              className="editor-sidebar__select select--sm" 
+              value={googleType} 
+              onChange={e => setGoogleType(e.target.value)}
+              style={{ width: '100%', height: '36px' }}
+            >
+              <option value="">Todos os Tipos</option>
+              <option value="SEARCH">Search</option>
+              <option value="PERFORMANCE_MAX">Performance Max</option>
+              <option value="ECOMMERCE">E-commerce (PMax Retail)</option>
+              <option value="SHOPPING">Shopping</option>
+              <option value="DISPLAY">Display</option>
+              <option value="VIDEO">Video</option>
+            </select>
+          </div>
+        )}
+        
+        <div style={{ flex: 1, minWidth: '150px' }}>
+          <input 
+            type="text"
+            className="form-input"
+            placeholder="Buscar campanha..."
+            value={campaign}
+            onChange={e => setCampaign(e.target.value)}
+            style={{ width: '100%', height: '36px' }}
+          />
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <button 
             className="btn btn--primary btn--sm" 
@@ -273,6 +317,33 @@ export default function PageAdsDashboard() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Maintenance Modal Mock */}
+      {isMaintenanceOpen && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="modal-content" style={{ background: 'var(--bg-card)', width: 500, borderRadius: 12, padding: 24 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Manutenção de Dados (Período)</h2>
+            <p className="text-muted" style={{ marginBottom: 16 }}>Ações de recarga, exclusão e substituição de dados no banco (GT 50-53).</p>
+            
+            <label className="form-label">Operação</label>
+            <select className="form-input" style={{ marginBottom: 16 }}>
+              <option value="preview">Visualizar Impacto</option>
+              <option value="delete">Excluir do banco</option>
+              <option value="reload">Recarregar</option>
+              <option value="replace">Substituir</option>
+              <option value="restore">Restaurar Snapshot</option>
+            </select>
+
+            <label className="form-label">Motivo (Obrigatório)</label>
+            <input type="text" className="form-input" placeholder="Descreva o motivo da manutenção..." style={{ marginBottom: 24 }} />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button className="btn btn--secondary" onClick={() => setIsMaintenanceOpen(false)}>Cancelar</button>
+              <button className="btn btn--primary" onClick={() => setIsMaintenanceOpen(false)}>Executar (Mock)</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

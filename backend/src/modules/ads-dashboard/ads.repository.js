@@ -139,6 +139,7 @@ export class AdsRepository {
       WHERE data >= ? AND data <= ?
       GROUP BY id_campanha, campanha, tipo_campanha
       ORDER BY spend DESC
+      LIMIT 100
     `;
     const { rows } = await queryAds(sql, [startDate, endDate]);
     return rows;

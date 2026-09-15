@@ -700,6 +700,201 @@ export const api = {
     return await request(`/ads-dashboard/overview?${q}`);
   },
 
+      return true;
+  },
+
+  getTags: async () => {
+    const data = await request("/docs/tags");
+      return data.data || [];
+  },
+
+  createTag: async (tag) => {
+    return await request("/docs/tags", { method: "POST", body: JSON.stringify(tag) });
+  },
+
+  deleteTag: async (id) => {
+    await request(`/docs/tags/${id}`, { method: "DELETE" });
+      return true;
+  },
+
+  getTemplates: async () => {
+    const data = await request("/docs/templates");
+      return data.data || [];
+  },
+
+  getUsers: async () => {
+    const data = await request("/users");
+      return (data.data || []).map(mapUser);
+  },
+
+  getUserMetadata: async () => {
+    return await request("/users/metadata");
+  },
+
+  updateMyProfile: async (changes) => {
+    const data = await request("/users/me/profile", { method: "PATCH", body: JSON.stringify(changes) });
+    const current = getStoredSession();
+    const session = { ...(current || {}), user: data.user, permissions: data.user?.permissions || current?.permissions || [] };
+    setStoredSession(session);
+    return session;
+  },
+
+  createUser: async (user) => {
+    return mapUser(await request("/users", { method: "POST", body: JSON.stringify(user) }));
+  },
+
+  updateUser: async (id, changes) => {
+    return mapUser(await request(`/users/${id}`, { method: "PATCH", body: JSON.stringify(changes) }));
+  },
+
+  deleteUser: async (id) => {
+    await request(`/users/${id}`, { method: "DELETE" });
+      return true;
+  },
+
+  updateClient: async (clientId, client) => {
+    const nextClient = await request(`/clients/${clientId}`, {
+        method: "PATCH",
+        body: JSON.stringify(client),
+      });
+      return mapClient(nextClient);
+  },
+
+  getTickets: async () => {
+    const res = await request("/tickets");
+      return res.data || [];
+  },
+
+  createTicket: async (ticket) => {
+    return await request("/tickets", {
+        method: "POST",
+        body: JSON.stringify(ticket)
+      });
+  },
+
+  getSettings: async (type) => {
+    const res = await request(`/settings/${type}`);
+      return res.data || [];
+  },
+
+  createSetting: async (type, setting) => {
+    return await request(`/settings/${type}`, {
+        method: "POST",
+        body: JSON.stringify(setting),
+      });
+  },
+
+  updateSetting: async (type, id, setting) => {
+    return await request(`/settings/${type}/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(setting),
+      });
+  },
+
+  deleteSetting: async (type, id) => {
+    await request(`/settings/${type}/${id}`, {
+      method: "DELETE",
+    });
+    return true;
+  },
+
+  // --- Telephony ---
+  getTelephonySummary: async () => {
+    return await request("/telephony/summary");
+  },
+
+  getTelephony: async (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return await request(`/telephony?${q}`);
+  },
+
+  createTelephony: async (data) => {
+    return await request("/telephony", { method: "POST", body: JSON.stringify(data) });
+  },
+
+  updateTelephony: async (id, data) => {
+    return await request(`/telephony/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+  },
+
+  deleteTelephony: async (id) => {
+    await request(`/telephony/${id}`, { method: "DELETE" });
+    return true;
+  },
+
+  // --- Flow Templates ---
+  getFlowTemplates: async () => {
+    const res = await request("/flow-templates");
+    return res.data || [];
+  },
+
+  getAdminFlowTemplates: async () => {
+    const res = await request("/flow-templates/admin");
+    return res.data || [];
+  },
+
+  createFlowTemplate: async (data) => {
+    return await request("/flow-templates", { method: "POST", body: JSON.stringify(data) });
+  },
+
+  updateFlowTemplate: async (id, data) => {
+    return await request(`/flow-templates/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+  },
+
+  executeFlowTemplate: async (id, payload, client_id, idempotency_key) => {
+    return await request(`/flow-templates/${id}/execute`, {
+      method: "POST",
+      body: JSON.stringify({ payload, client_id, idempotency_key }),
+    });
+  },
+
+  getFlowRequests: async (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return await request(`/flow-templates/requests?${q}`);
+  },
+
+  // --- Alerts ---
+  getAlerts: async () => {
+    return await request("/alerts");
+  },
+
+  getAlertEvents: async (id) => {
+    const data = await request(`/alerts/${id}/events`);
+    return data.data || [];
+  },
+
+  getAlertsHistory: async (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return await request(`/alerts/history?${q}`);
+  },
+
+  resolveAlert: async (id, resolution_note) => {
+    return await request(`/alerts/${id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify({ resolution_note }),
+    });
+  },
+
+  getAlertPreference: async (type, id) => {
+    return await request(`/alerts/preferences/${type}/${id}`);
+  },
+
+  updateAlertPreference: async (type, id, enabled) => {
+    return await request(`/alerts/preferences/${type}/${id}`, {
+      method: "POST",
+      body: JSON.stringify({ enabled }),
+    });
+  },
+
+  // --- Ads Dashboard ---
+  getAdsClients: async () => {
+    return await request("/ads-dashboard/clients");
+  },
+
+  getAdsOverview: async (clientId, startDate, endDate) => {
+    const q = new URLSearchParams({ clientId, startDate, endDate }).toString();
+    return await request(`/ads-dashboard/overview?${q}`);
+  },
+
   getAdsDaily: async (clientId, platform, startDate, endDate) => {
     const q = new URLSearchParams({ clientId, platform, startDate, endDate }).toString();
     return await request(`/ads-dashboard/daily?${q}`);
@@ -708,5 +903,24 @@ export const api = {
   getAdsCampaigns: async (clientId, platform, startDate, endDate) => {
     const q = new URLSearchParams({ clientId, platform, startDate, endDate }).toString();
     return await request(`/ads-dashboard/campaigns?${q}`);
+  },
+
+  // --- GT Automation ---
+  getAdminGtJobs: async () => {
+    return await request("/admin/gt-automation/jobs");
+  },
+
+  postAdminGtPreflight: async (payload) => {
+    return await request("/admin/gt-automation/preflight", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  postAdminGtJobs: async (payload) => {
+    return await request("/admin/gt-automation/jobs", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   }
 };

@@ -20,6 +20,7 @@ const PageTelephony = lazy(() => import("./pages/Telephony/PageTelephony"));
 const PageFlowTemplates = lazy(() => import("./pages/FlowTemplates/PageFlowTemplates"));
 const PageAlerts = lazy(() => import("./pages/Alerts/PageAlerts"));
 const PageAboutUs = lazy(() => import("./pages/AboutUs/PageAboutUs"));
+const PageGtAutomation = lazy(() => import("./pages/GtAutomation/PageGtAutomation"));
 import LoginScreen from "./pages/Login/LoginScreen";
 import { CommandPalette } from "./components/app/CommandPalette";
 
@@ -34,6 +35,7 @@ const NAV = [
   { id: "dashboards-ads", path: "/dashboards", label: "Dashboards", icon: <Icons.TrendingUp />, isAdminOnly: true, isDev: true },
   { id: "alerts", path: "/alertas", label: "Alertas", icon: <Icons.Bell />, isAdminOnly: true },
   { id: "users", path: "/usuarios", label: "Usuários", icon: <Icons.Lock />, isAdminOnly: true },
+  { id: "gt-automation", path: "/gt-automation", label: "Central GT", icon: <Icons.Activity />, isAdminOnly: true },
 ];
 
 export default function App() {
@@ -469,6 +471,7 @@ export default function App() {
                   <Route path="/fluxos" element={isSuperAdmin ? <PageFlowTemplates permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                   <Route path="/alertas" element={isSuperAdmin ? <PageAlerts permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                   <Route path="/usuarios" element={isSuperAdmin ? <PageUsers /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                  <Route path="/gt-automation" element={isSuperAdmin ? <PageGtAutomation session={session} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                   <Route path="/perfil" element={<PageProfile session={session} onSessionUpdate={setSession} />} />
                   <Route path="/configuracoes" element={isSuperAdmin ? <PageSettings session={session} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                   <Route path="*" element={<div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Página não encontrada.</div>} />

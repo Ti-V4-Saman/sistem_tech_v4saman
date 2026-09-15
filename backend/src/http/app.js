@@ -19,6 +19,7 @@ import { notificationRoutes } from '../modules/notifications/routes.js';
 import { telephonyRoutes } from '../modules/telephony/routes.js';
 import { flowTemplateRoutes } from '../modules/flow-templates/routes.js';
 import { alertRoutes } from '../modules/alerts/routes.js';
+import { gtAutomationRoutes } from '../modules/gt-automation/routes.js';
 
 export function createApp() {
   const app = express();
@@ -49,6 +50,7 @@ export function createApp() {
   app.use('/api/telephony', telephonyRoutes);
   app.use('/api/flow-templates', flowTemplateRoutes);
   app.use('/api/alerts', alertRoutes);
+  app.use('/api/admin/gt-automation', gtAutomationRoutes);
 
   app.use(notFound);
   app.use(errorHandler);

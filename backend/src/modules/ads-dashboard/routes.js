@@ -47,3 +47,47 @@ adsDashboardRoutes.get('/campaigns', requirePermission('dashboard.view'), asyncH
   ok(res, { data });
 }));
 
+// --- Data Maintenance (GT 50-53) ---
+
+adsDashboardRoutes.post('/maintenance/preview', requirePermission('dashboard.manage'), asyncHandler(async (req, res) => {
+  const { clientId, platform, operation, startDate, endDate } = req.body;
+  if (!clientId || !platform || !operation) throw new HttpError(400, 'clientId, platform and operation are required');
+  
+  // Mock preview response
+  ok(res, {
+    impact: {
+      rowsAffected: 1450,
+      estimatedTime: '45s',
+      warning: operation === 'delete' ? 'This operation is destructive and will remove data locally.' : null
+    }
+  });
+}));
+
+adsDashboardRoutes.post('/maintenance/jobs', requirePermission('dashboard.manage'), asyncHandler(async (req, res) => {
+  const { clientId, platform, operation, startDate, endDate, reason } = req.body;
+  if (!reason) throw new HttpError(400, 'Reason is required for maintenance operations.');
+  
+  // Return mock job
+  ok(res, {
+    jobId: `maint_${Date.now()}`,
+    status: 'running',
+    message: `Maintenance operation ${operation} started.`
+  });
+}));
+
+adsDashboardRoutes.get('/maintenance/jobs/:jobId', requirePermission('dashboard.manage'), asyncHandler(async (req, res) => {
+  ok(res, {
+    jobId: req.params.jobId,
+    status: 'succeeded',
+    message: 'Operation completed successfully.'
+  });
+}));
+
+adsDashboardRoutes.post('/maintenance/jobs/:jobId/restore', requirePermission('dashboard.manage'), asyncHandler(async (req, res) => {
+  ok(res, {
+    jobId: req.params.jobId,
+    status: 'running',
+    message: 'Restoring snapshot...'
+  });
+}));
+
