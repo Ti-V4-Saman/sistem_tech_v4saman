@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../../services/api";
 import { Icons } from "../../icons/Icons";
-import { motion, AnimatePresence } from "framer-motion";
 
 const TAB_TOOLS = "tools";
 const TAB_FINANCIAL = "financial";
@@ -202,11 +201,9 @@ export default function PageControlArea() {
         )}
       </div>
 
-      <AnimatePresence>
-        {isModalOpen && (
-          <Modal activeTab={activeTab} item={editingItem} onClose={() => setIsModalOpen(false)} onSave={handleSave} />
-        )}
-      </AnimatePresence>
+      {isModalOpen && (
+        <Modal activeTab={activeTab} item={editingItem} onClose={() => setIsModalOpen(false)} onSave={handleSave} />
+      )}
     </div>
   );
 }
@@ -266,12 +263,13 @@ function Modal({ activeTab, item, onClose, onSave }) {
   };
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose} />
-      
-      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "500px", position: "relative", zIndex: 1001, boxShadow: "var(--sh-xl)" }}>
-        <h2 style={{ margin: "0 0 24px 0", fontSize: "20px" }}>{item ? "Editar" : "Adicionar"} Registro</h2>
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+    <div className="doc-overlay" onClick={onClose}>
+      <div className="doc-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
+        <div className="doc-modal__header">
+          <span className="doc-modal__title">{item ? "Editar" : "Adicionar"} Registro</span>
+          <button type="button" className="doc-modal__close" onClick={onClose}>✕</button>
+        </div>
+        <form className="doc-modal__body" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           
           {activeTab === TAB_TOOLS && (
             <>
@@ -322,7 +320,7 @@ function Modal({ activeTab, item, onClose, onSave }) {
             <button type="submit" className="btn btn--primary">Salvar</button>
           </div>
         </form>
-      </motion.div>
+      </div>
     </div>
   );
 }
