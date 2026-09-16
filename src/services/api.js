@@ -657,6 +657,13 @@ export const api = {
     return await request(`/flow-templates/requests?${q}`);
   },
 
+  sendClientFlowWebhook: async (payload) => {
+    return await request("/flow-templates/client-flow-webhook", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
   // --- Alerts ---
   getAlerts: async () => {
     return await request("/alerts");

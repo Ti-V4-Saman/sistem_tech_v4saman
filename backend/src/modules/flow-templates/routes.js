@@ -33,6 +33,30 @@ flowTemplateRoutes.get('/admin', requirePermission('flows.manage'), asyncHandler
   ok(res, { data: rows });
 }));
 
+// Forward client flow webhook to n8n
+flowTemplateRoutes.post('/client-flow-webhook', asyncHandler(async (req, res) => {
+  const payload = req.body;
+  const webhookUrl = 'https://n8ops.v4saman.com/webhook/v4saman-criador-de-fluxos';
+  
+  const upstream = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {})
+  });
+  
+  const text = await upstream.text();
+  if (!upstream.ok) {
+    throw new HttpError(upstream.status, text || 'Erro ao comunicar com webhook do n8n.');
+  }
+  
+  try {
+    const data = JSON.parse(text);
+    ok(res, { data });
+  } catch {
+    ok(res, { message: text || 'OK' });
+  }
+}));
+
 flowTemplateRoutes.post('/', requirePermission('flows.manage'), audit('flow_template', 'create'), asyncHandler(async (req, res) => {
   const { name, slug, description, category, webhook_url, form_schema, is_active, display_order } = req.body || {};
   if (!name || !slug) throw new HttpError(400, 'Name and slug are required.');

@@ -5,8 +5,10 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { StatusPill } from "../../components/ui/StatusPill";
 import { FlowTemplateModal } from "./FlowTemplateModal";
 import { FlowExecutionModal } from "./FlowExecutionModal";
+import { ClientFlowForm } from "./ClientFlowForm";
 
-export default function PageFlowTemplates({ permissions = [] }) {
+export default function PageFlowTemplates({ permissions = [], session = null }) {
+  const [activeTab, setActiveTab] = useState("client-flow"); // "client-flow" | "templates"
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -39,6 +41,7 @@ export default function PageFlowTemplates({ permissions = [] }) {
   useEffect(() => {
     const handleResetPage = (event) => {
       if (event.detail === "flows") {
+        setActiveTab("client-flow");
         setIsEditModalOpen(false);
         setIsRunModalOpen(false);
         setSelectedTemplateForEdit(null);
@@ -56,9 +59,9 @@ export default function PageFlowTemplates({ permissions = [] }) {
     <div className="page-layout">
       <SectionHeader
         title="Modelos de Fluxos"
-        description="Templates padronizados para criação de fluxos de atendimento, envios e configurações de sistema."
+        description="Estruturação operacional, cadastro de clientes e automações parametrizadas."
         right={
-          canManage && (
+          activeTab === "templates" && canManage && (
             <button className="btn btn--primary" onClick={() => { setSelectedTemplateForEdit(null); setIsEditModalOpen(true); }}>
               Novo Template
             </button>
@@ -66,64 +69,123 @@ export default function PageFlowTemplates({ permissions = [] }) {
         }
       />
 
-      {loading && <div className="p-8 text-center text-muted">Carregando modelos...</div>}
-      {error && <div className="p-8 text-center text-danger">{error}</div>}
-      
-      {!loading && !error && templates.length === 0 ? (
-        <EmptyState icon="⚡" title="Nenhum template cadastrado" description="Os templates permitem que sua equipe inicie automações parametrizadas através de formulários padronizados." />
-      ) : (!loading && !error && (
-        <div className="space-y-8">
-          <div>
-            <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">Templates Disponíveis</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {activeTemplates.map(template => (
-                <div key={template.id} className="card p-4 hover:border-primary transition-colors flex flex-col h-full">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-bold text-base truncate pr-2">{template.name}</h4>
-                    <span className="text-xs font-mono text-muted bg-muted/10 px-2 py-0.5 rounded">{template.category || "Geral"}</span>
-                  </div>
-                  <p className="text-sm text-muted mb-4 flex-1 line-clamp-3">{template.description}</p>
-                  
-                  <div className="flex gap-2 mt-auto pt-4 border-t border-border">
-                    <button className="btn btn--primary flex-1" onClick={() => { setSelectedTemplateForRun(template); setIsRunModalOpen(true); }}>
-                      Usar Template
-                    </button>
-                    {canManage && (
-                      <button className="btn btn--secondary" onClick={() => { setSelectedTemplateForEdit(template); setIsEditModalOpen(true); }}>
-                        Editar
-                      </button>
-                    )}
+      {/* Tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          borderBottom: "1px solid var(--border)",
+          marginBottom: "28px",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab("client-flow")}
+          style={{
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "client-flow" ? "2px solid #ff3c3c" : "2px solid transparent",
+            color: activeTab === "client-flow" ? "#ff3c3c" : "var(--text-muted)",
+            fontWeight: 600,
+            fontSize: "14px",
+            padding: "10px 18px",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <span>⚡</span> Cadastro de Cliente (Fluxo)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("templates")}
+          style={{
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "templates" ? "2px solid #ff3c3c" : "2px solid transparent",
+            color: activeTab === "templates" ? "#ff3c3c" : "var(--text-muted)",
+            fontWeight: 600,
+            fontSize: "14px",
+            padding: "10px 18px",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <span>📋</span> Biblioteca de Modelos {templates.length > 0 && `(${templates.length})`}
+        </button>
+      </div>
+
+      {/* Content */}
+      {activeTab === "client-flow" ? (
+        <ClientFlowForm defaultResponsible={session?.user?.name || ""} />
+      ) : (
+        <>
+          {loading && <div className="p-8 text-center text-muted">Carregando modelos...</div>}
+          {error && <div className="p-8 text-center text-danger">{error}</div>}
+          
+          {!loading && !error && templates.length === 0 ? (
+            <EmptyState icon="⚡" title="Nenhum template cadastrado" description="Os templates permitem que sua equipe inicie automações parametrizadas através de formulários padronizados." />
+          ) : (!loading && !error && (
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">Templates Disponíveis</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {activeTemplates.map(template => (
+                    <div key={template.id} className="card p-4 hover:border-primary transition-colors flex flex-col h-full">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-bold text-base truncate pr-2">{template.name}</h4>
+                        <span className="text-xs font-mono text-muted bg-muted/10 px-2 py-0.5 rounded">{template.category || "Geral"}</span>
+                      </div>
+                      <p className="text-sm text-muted mb-4 flex-1 line-clamp-3">{template.description}</p>
+                      
+                      <div className="flex gap-2 mt-auto pt-4 border-t border-border">
+                        <button className="btn btn--primary flex-1" onClick={() => { setSelectedTemplateForRun(template); setIsRunModalOpen(true); }}>
+                          Usar Template
+                        </button>
+                        {canManage && (
+                          <button className="btn btn--secondary" onClick={() => { setSelectedTemplateForEdit(template); setIsEditModalOpen(true); }}>
+                            Editar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {activeTemplates.length === 0 && <div className="col-span-full text-muted text-sm py-4">Nenhum template ativo disponível.</div>}
+                </div>
+              </div>
+
+              {canManage && inactiveTemplates.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">Templates Inativos (Apenas Admins)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-75 grayscale hover:grayscale-0 transition-all">
+                    {inactiveTemplates.map(template => (
+                      <div key={template.id} className="card p-4 flex flex-col h-full bg-surface">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-bold text-base truncate pr-2">{template.name}</h4>
+                          <StatusPill status="neutral" label="Inativo" />
+                        </div>
+                        <p className="text-sm text-muted mb-4 flex-1">{template.description}</p>
+                        
+                        <div className="flex gap-2 mt-auto pt-4 border-t border-border">
+                          <button className="btn btn--secondary flex-1" onClick={() => { setSelectedTemplateForEdit(template); setIsEditModalOpen(true); }}>
+                            Editar Configurações
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-              {activeTemplates.length === 0 && <div className="col-span-full text-muted text-sm py-4">Nenhum template ativo disponível.</div>}
+              )}
             </div>
-          </div>
-
-          {canManage && inactiveTemplates.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">Templates Inativos (Apenas Admins)</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-75 grayscale hover:grayscale-0 transition-all">
-                {inactiveTemplates.map(template => (
-                  <div key={template.id} className="card p-4 flex flex-col h-full bg-surface">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-bold text-base truncate pr-2">{template.name}</h4>
-                      <StatusPill status="neutral" label="Inativo" />
-                    </div>
-                    <p className="text-sm text-muted mb-4 flex-1">{template.description}</p>
-                    
-                    <div className="flex gap-2 mt-auto pt-4 border-t border-border">
-                      <button className="btn btn--secondary flex-1" onClick={() => { setSelectedTemplateForEdit(template); setIsEditModalOpen(true); }}>
-                        Editar Configurações
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
+          ))}
+        </>
+      )}
 
       {isEditModalOpen && (
         <FlowTemplateModal
