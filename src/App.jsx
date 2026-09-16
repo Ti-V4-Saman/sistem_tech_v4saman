@@ -20,6 +20,7 @@ const PageTelephony = lazy(() => import("./pages/Telephony/PageTelephony"));
 const PageFlowTemplates = lazy(() => import("./pages/FlowTemplates/PageFlowTemplates"));
 const PageAlerts = lazy(() => import("./pages/Alerts/PageAlerts"));
 const PageAboutUs = lazy(() => import("./pages/AboutUs/PageAboutUs"));
+const PageControlArea = lazy(() => import("./pages/ControlArea/PageControlArea"));
 import LoginScreen from "./pages/Login/LoginScreen";
 import { CommandPalette } from "./components/app/CommandPalette";
 
@@ -34,6 +35,7 @@ const NAV = [
   { id: "dashboards-ads", path: "/dashboards", label: "Dashboards", icon: <Icons.TrendingUp />, isAdminOnly: true, isDev: true },
   { id: "alerts", path: "/alertas", label: "Alertas", icon: <Icons.Bell />, isAdminOnly: true },
   { id: "users", path: "/usuarios", label: "Usuários", icon: <Icons.Lock />, isAdminOnly: true },
+  { id: "control", path: "/controle", label: "Área de Controle", icon: <Icons.Lock />, isAdminOnly: true },
 ];
 
 export default function App() {
@@ -471,6 +473,7 @@ export default function App() {
                   <Route path="/usuarios" element={isSuperAdmin ? <PageUsers /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                   <Route path="/perfil" element={<PageProfile session={session} onSessionUpdate={setSession} />} />
                   <Route path="/configuracoes" element={isSuperAdmin ? <PageSettings session={session} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                  <Route path="/controle" element={isSuperAdmin ? <PageControlArea /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                   <Route path="*" element={<div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Página não encontrada.</div>} />
                 </Routes>
               </Suspense>

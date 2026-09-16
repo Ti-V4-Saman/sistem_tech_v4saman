@@ -733,5 +733,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     });
-  }
+  },
+
+  // --- Control Area ---
+  getControlTools: async () => request("/control-area/tools"),
+  createControlTool: async (data) => request("/control-area/tools", { method: "POST", body: JSON.stringify(data) }),
+  updateControlTool: async (id, data) => request(`/control-area/tools/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteControlTool: async (id) => request(`/control-area/tools/${id}`, { method: "DELETE" }),
+
+  getControlFinancial: async () => request("/control-area/financial"),
+  createControlFinancial: async (data) => request("/control-area/financial", { method: "POST", body: JSON.stringify(data) }),
+  updateControlFinancial: async (id, data) => request(`/control-area/financial/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteControlFinancial: async (id) => request(`/control-area/financial/${id}`, { method: "DELETE" }),
+
+  getControlAccess: async () => request("/control-area/access"),
+  createControlAccess: async (data) => request("/control-area/access", { method: "POST", body: JSON.stringify(data) }),
+  updateControlAccess: async (id, data) => request(`/control-area/access/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteControlAccess: async (id) => request(`/control-area/access/${id}`, { method: "DELETE" }),
 };
