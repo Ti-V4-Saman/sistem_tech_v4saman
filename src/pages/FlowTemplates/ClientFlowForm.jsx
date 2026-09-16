@@ -41,7 +41,7 @@ export function ClientFlowForm({ defaultResponsible = "" }) {
   };
 
   const handleBmChange = (e) => {
-    const numeric = e.target.value.replace(/\D/g, "").slice(0, 16);
+    const numeric = e.target.value.replace(/\D/g, "");
     setFormData((prev) => ({ ...prev, bm: numeric }));
   };
 
@@ -54,9 +54,8 @@ export function ClientFlowForm({ defaultResponsible = "" }) {
     e.preventDefault();
     setStatusMessage(null);
 
-    // Validations
-    if (formData.bm && formData.bm.length !== 16) {
-      setStatusMessage({ type: "error", text: "O ID da BM deve conter exatamente 16 números." });
+    if (formData.bm && formData.bm.length < 10) {
+      setStatusMessage({ type: "error", text: "O ID da BM deve conter pelo menos 10 números." });
       return;
     }
 
@@ -445,8 +444,8 @@ export function ClientFlowForm({ defaultResponsible = "" }) {
                   type="text"
                   className="v4-input"
                   inputMode="numeric"
-                  maxLength={16}
-                  placeholder="16 números (ex: 1234567890123456)"
+                  maxLength={30}
+                  placeholder="Mínimo de 10 números (ex: 1234567890)"
                   value={formData.bm}
                   onChange={handleBmChange}
                 />
