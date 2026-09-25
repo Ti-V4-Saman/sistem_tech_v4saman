@@ -6,9 +6,10 @@ import { StatusPill } from "../../components/ui/StatusPill";
 import { FlowTemplateModal } from "./FlowTemplateModal";
 import { FlowExecutionModal } from "./FlowExecutionModal";
 import { ClientFlowForm } from "./ClientFlowForm";
+import { CreativeRecoveryFlowForm } from "./CreativeRecoveryFlowForm";
 
 export default function PageFlowTemplates({ permissions = [], session = null }) {
-  const [activeTab, setActiveTab] = useState("client-flow"); // "client-flow" | "templates"
+  const [activeTab, setActiveTab] = useState("client-flow"); // "client-flow" | "creative-recovery" | "templates"
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -76,6 +77,7 @@ export default function PageFlowTemplates({ permissions = [], session = null }) 
           gap: "8px",
           borderBottom: "1px solid var(--border)",
           marginBottom: "28px",
+          flexWrap: "wrap",
         }}
       >
         <button
@@ -101,6 +103,27 @@ export default function PageFlowTemplates({ permissions = [], session = null }) 
 
         <button
           type="button"
+          onClick={() => setActiveTab("creative-recovery")}
+          style={{
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "creative-recovery" ? "2px solid #ff3c3c" : "2px solid transparent",
+            color: activeTab === "creative-recovery" ? "#ff3c3c" : "var(--text-muted)",
+            fontWeight: 600,
+            fontSize: "14px",
+            padding: "10px 18px",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <span>🔄</span> Recuperação Criativos Meta
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab("templates")}
           style={{
             background: "none",
@@ -122,9 +145,15 @@ export default function PageFlowTemplates({ permissions = [], session = null }) 
       </div>
 
       {/* Content */}
-      {activeTab === "client-flow" ? (
+      {activeTab === "client-flow" && (
         <ClientFlowForm defaultResponsible={session?.user?.name || ""} />
-      ) : (
+      )}
+
+      {activeTab === "creative-recovery" && (
+        <CreativeRecoveryFlowForm />
+      )}
+
+      {activeTab === "templates" && (
         <>
           {loading && <div className="p-8 text-center text-muted">Carregando modelos...</div>}
           {error && <div className="p-8 text-center text-danger">{error}</div>}

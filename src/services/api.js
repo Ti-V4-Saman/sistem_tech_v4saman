@@ -664,6 +664,13 @@ export const api = {
     });
   },
 
+  sendRecoveryCreativeWebhook: async (payload) => {
+    return await request("/flow-templates/recovery-creative-webhook", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
   // --- Alerts ---
   getAlerts: async () => {
     return await request("/alerts");

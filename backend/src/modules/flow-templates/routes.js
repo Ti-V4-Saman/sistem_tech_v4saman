@@ -57,6 +57,41 @@ flowTemplateRoutes.post('/client-flow-webhook', asyncHandler(async (req, res) =>
   }
 }));
 
+// Forward creative recovery webhook to n8n
+flowTemplateRoutes.post('/recovery-creative-webhook', asyncHandler(async (req, res) => {
+  const payload = req.body || {};
+  const webhookUrl = 'https://n8ops.v4saman.com/webhook/tecar-recuperacao-criativos-dashboard';
+  
+  const enhancedPayload = {
+    ...payload,
+    account_id: payload.account_id || payload.accountId || payload.id_conta || '',
+    creative_id: payload.creative_id || payload.creativeId || payload.id_criativo || '',
+    accountId: payload.accountId || payload.account_id || payload.id_conta || '',
+    creativeId: payload.creativeId || payload.creative_id || payload.id_criativo || '',
+    id_conta: payload.id_conta || payload.account_id || payload.accountId || '',
+    id_criativo: payload.id_criativo || payload.creative_id || payload.creativeId || '',
+    requested_at: new Date().toISOString(),
+  };
+
+  const upstream = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(enhancedPayload)
+  });
+  
+  const text = await upstream.text();
+  if (!upstream.ok) {
+    throw new HttpError(upstream.status, text || 'Erro ao comunicar com webhook de recuperação de criativos.');
+  }
+  
+  try {
+    const data = JSON.parse(text);
+    ok(res, { data });
+  } catch {
+    ok(res, { message: text || 'OK' });
+  }
+}));
+
 flowTemplateRoutes.post('/', requirePermission('flows.manage'), audit('flow_template', 'create'), asyncHandler(async (req, res) => {
   const { name, slug, description, category, webhook_url, form_schema, is_active, display_order } = req.body || {};
   if (!name || !slug) throw new HttpError(400, 'Name and slug are required.');
@@ -172,10 +207,18 @@ flowTemplateRoutes.post('/:id/execute', requirePermission('flows.view'), audit('
   const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
 
   try {
+    const outgoingPayload = {
+      ...(payload || {}),
+      ...(payload?.account_id ? { accountId: payload.account_id, id_conta: payload.account_id } : {}),
+      ...(payload?.creative_id ? { creativeId: payload.creative_id, id_criativo: payload.creative_id } : {}),
+      ...(payload?.accountId ? { account_id: payload.accountId, id_conta: payload.accountId } : {}),
+      ...(payload?.creativeId ? { creative_id: payload.creativeId, id_criativo: payload.creativeId } : {}),
+    };
+
     const fetchResponse = await fetch(template.webhook_url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload || {}),
+      body: JSON.stringify(outgoingPayload),
       signal: controller.signal
     });
 
