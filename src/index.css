@@ -260,13 +260,28 @@ p{color:var(--text-secondary);line-height:1.6}
 .badge--default{background:var(--bg-secondary);color:var(--text-secondary)}
 
 /* ── 9. TABELA ── */
-.table-wrap{background:var(--bg-card);border-radius:var(--r-xl);border:1px solid var(--border);overflow:hidden;box-shadow:var(--sh-xs)}
+.table-wrap{background:var(--bg-card);border-radius:var(--r-xl);border:1px solid var(--border);overflow-x:auto;box-shadow:var(--sh-xs)}
 .table{width:100%;border-collapse:collapse}
-.table th{text-align:left;font-size:12px;font-weight:700;color:var(--text-muted);padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-secondary);text-transform:uppercase;letter-spacing:0.06em}
-.table td{font-size:14px;color:var(--text-primary);padding:16px;border-bottom:1px solid var(--border);transition:all 0.2s}
+.table th{text-align:left;font-size:12px;font-weight:700;color:var(--text-muted);padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-secondary);text-transform:uppercase;letter-spacing:0.06em;vertical-align:middle}
+.table td{font-size:14px;color:var(--text-primary);padding:14px 16px;border-bottom:1px solid var(--border);transition:all 0.2s;vertical-align:middle}
 .table tbody tr{transition:all 0.2s}
 .table tbody tr:last-child td{border-bottom:none}
 .table tbody tr:hover td{background:rgba(233,46,48,0.02)}
+
+/* Flex Utilities */
+.flex{display:flex}
+.inline-flex{display:inline-flex}
+.flex-col{flex-direction:column}
+.items-center{align-items:center}
+.items-start{align-items:flex-start}
+.justify-end{justify-content:flex-end}
+.justify-between{justify-content:space-between}
+.justify-center{justify-content:center}
+.gap-1{gap:4px}
+.gap-2{gap:8px}
+.gap-3{gap:12px}
+.gap-4{gap:16px}
+.nowrap{white-space:nowrap;flex-wrap:nowrap}
 
 /* ── 10. FORM ── */
 .search-input{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 12px 8px 36px;font-size:var(--tx-sm);color:var(--text-primary);width:260px;transition:border-color .15s}

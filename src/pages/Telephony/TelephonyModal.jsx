@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "../../services/api";
 
 export function TelephonyModal({ 
@@ -24,9 +24,14 @@ export function TelephonyModal({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [customTeamMode, setCustomTeamMode] = useState(false);
+  const [customSectorMode, setCustomSectorMode] = useState(false);
 
   useEffect(() => {
     if (item) {
+      const matchedTeam = teams.find(t => t.trim().toLowerCase() === (item.team_name || "").trim().toLowerCase());
+      const matchedSector = sectors.find(s => s.trim().toLowerCase() === (item.sector || "").trim().toLowerCase());
+
       setFormData({
         normalized_number: item.normalized_number || "",
         display_number: item.display_number || "",
@@ -35,12 +40,45 @@ export function TelephonyModal({
         monthly_fee: item.monthly_fee !== null && item.monthly_fee !== undefined ? String(item.monthly_fee) : "",
         status: item.status || "ativo",
         responsible_name: item.responsible_name || "",
-        sector: item.sector || "",
-        team_name: item.team_name || "",
+        sector: matchedSector || item.sector || "",
+        team_name: matchedTeam || item.team_name || "",
         notes: item.notes || ""
       });
+      setCustomTeamMode(false);
+      setCustomSectorMode(false);
+    } else {
+      setFormData({
+        normalized_number: "",
+        display_number: "",
+        category: "celular",
+        routing: "",
+        monthly_fee: "",
+        status: "ativo",
+        responsible_name: "",
+        sector: "",
+        team_name: "",
+        notes: ""
+      });
+      setCustomTeamMode(false);
+      setCustomSectorMode(false);
     }
-  }, [item]);
+  }, [item, teams, sectors]);
+
+  const availableTeams = useMemo(() => {
+    const list = [...teams];
+    if (formData.team_name && !list.some(t => t.trim().toLowerCase() === formData.team_name.trim().toLowerCase())) {
+      list.push(formData.team_name);
+    }
+    return [...new Set(list)].sort((a, b) => a.localeCompare(b));
+  }, [teams, formData.team_name]);
+
+  const availableSectors = useMemo(() => {
+    const list = [...sectors];
+    if (formData.sector && !list.some(s => s.trim().toLowerCase() === formData.sector.trim().toLowerCase())) {
+      list.push(formData.sector);
+    }
+    return [...new Set(list)].sort((a, b) => a.localeCompare(b));
+  }, [sectors, formData.sector]);
 
   // Fechar com tecla ESC
   useEffect(() => {
@@ -216,13 +254,6 @@ export function TelephonyModal({
           )}
 
           <form id="telephonyForm" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {/* Datalists para autocompletar sugestões */}
-            <datalist id="telephony-teams-list">
-              {teams.map(t => <option key={t} value={t} />)}
-            </datalist>
-            <datalist id="telephony-sectors-list">
-              {sectors.map(s => <option key={s} value={s} />)}
-            </datalist>
 
             {/* Bloco 1: Identificação */}
             <div>
@@ -352,30 +383,102 @@ export function TelephonyModal({
                   <label className="editor-sidebar__label" style={{ display: 'block', marginBottom: '6px' }}>
                     Time / Squad
                   </label>
-                  <input 
-                    type="text" 
-                    name="team_name" 
-                    list="telephony-teams-list"
-                    className="editor-sidebar__input" 
-                    placeholder="Selecione ou digite o time" 
-                    value={formData.team_name} 
-                    onChange={handleChange} 
-                  />
+                  {customTeamMode ? (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <input 
+                        type="text" 
+                        name="team_name" 
+                        className="editor-sidebar__input" 
+                        placeholder="Digite o novo time / squad" 
+                        autoFocus
+                        value={formData.team_name} 
+                        onChange={handleChange} 
+                      />
+                      <button
+                        type="button"
+                        className="btn btn--outline btn--sm"
+                        style={{ flexShrink: 0, padding: '0 10px', height: '36px' }}
+                        onClick={() => {
+                          setCustomTeamMode(false);
+                          setFormData(prev => ({ ...prev, team_name: "" }));
+                        }}
+                        title="Voltar para lista de seleção"
+                      >
+                        ✕ Lista
+                      </button>
+                    </div>
+                  ) : (
+                    <select 
+                      name="team_name" 
+                      className="editor-sidebar__select" 
+                      value={formData.team_name} 
+                      onChange={(e) => {
+                        if (e.target.value === "__custom__") {
+                          setCustomTeamMode(true);
+                          setFormData(prev => ({ ...prev, team_name: "" }));
+                        } else {
+                          handleChange(e);
+                        }
+                      }}
+                    >
+                      <option value="">Sem time / squad</option>
+                      {availableTeams.map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                      <option value="__custom__">➕ Outro time (digitar novo)...</option>
+                    </select>
+                  )}
                 </div>
 
                 <div>
                   <label className="editor-sidebar__label" style={{ display: 'block', marginBottom: '6px' }}>
                     Setor
                   </label>
-                  <input 
-                    type="text" 
-                    name="sector" 
-                    list="telephony-sectors-list"
-                    className="editor-sidebar__input" 
-                    placeholder="Selecione ou digite o setor" 
-                    value={formData.sector} 
-                    onChange={handleChange} 
-                  />
+                  {customSectorMode ? (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <input 
+                        type="text" 
+                        name="sector" 
+                        className="editor-sidebar__input" 
+                        placeholder="Digite o novo setor" 
+                        autoFocus
+                        value={formData.sector} 
+                        onChange={handleChange} 
+                      />
+                      <button
+                        type="button"
+                        className="btn btn--outline btn--sm"
+                        style={{ flexShrink: 0, padding: '0 10px', height: '36px' }}
+                        onClick={() => {
+                          setCustomSectorMode(false);
+                          setFormData(prev => ({ ...prev, sector: "" }));
+                        }}
+                        title="Voltar para lista de seleção"
+                      >
+                        ✕ Lista
+                      </button>
+                    </div>
+                  ) : (
+                    <select 
+                      name="sector" 
+                      className="editor-sidebar__select" 
+                      value={formData.sector} 
+                      onChange={(e) => {
+                        if (e.target.value === "__custom__") {
+                          setCustomSectorMode(true);
+                          setFormData(prev => ({ ...prev, sector: "" }));
+                        } else {
+                          handleChange(e);
+                        }
+                      }}
+                    >
+                      <option value="">Sem setor</option>
+                      {availableSectors.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                      <option value="__custom__">➕ Outro setor (digitar novo)...</option>
+                    </select>
+                  )}
                 </div>
               </div>
             </div>

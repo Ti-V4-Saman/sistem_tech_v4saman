@@ -46,6 +46,9 @@ export default function PageTelephony({ permissions = [] }) {
   const canExport = permissions.includes("telephony.export") || permissions.includes("*");
   const isSuperAdmin = permissions.includes("*");
 
+  const [metadataTeams, setMetadataTeams] = useState([]);
+  const [metadataSectors, setMetadataSectors] = useState([]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -61,17 +64,45 @@ export default function PageTelephony({ permissions = [] }) {
 
   useEffect(() => {
     loadData();
+    api.getUserMetadata()
+      .then(meta => {
+        if (meta) {
+          if (Array.isArray(meta.teams)) {
+            setMetadataTeams(meta.teams.map(t => t.name || t.slug).filter(Boolean));
+          }
+          if (Array.isArray(meta.areas)) {
+            setMetadataSectors(meta.areas.map(a => a.name || a.slug).filter(Boolean));
+          }
+        }
+      })
+      .catch(() => {});
   }, [loadData]);
 
   const uniqueTeams = useMemo(() => {
-    const list = data.map(item => item.team_name).filter(Boolean);
-    return [...new Set(list)].sort();
-  }, [data]);
+    const map = new Map();
+    metadataTeams.forEach(t => {
+      if (t) map.set(t.trim().toLowerCase(), t.trim());
+    });
+    data.forEach(item => {
+      if (item.team_name && !map.has(item.team_name.trim().toLowerCase())) {
+        map.set(item.team_name.trim().toLowerCase(), item.team_name.trim());
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+  }, [metadataTeams, data]);
 
   const uniqueSectors = useMemo(() => {
-    const list = data.map(item => item.sector).filter(Boolean);
-    return [...new Set(list)].sort();
-  }, [data]);
+    const map = new Map();
+    metadataSectors.forEach(s => {
+      if (s) map.set(s.trim().toLowerCase(), s.trim());
+    });
+    data.forEach(item => {
+      if (item.sector && !map.has(item.sector.trim().toLowerCase())) {
+        map.set(item.sector.trim().toLowerCase(), item.sector.trim());
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+  }, [metadataSectors, data]);
 
   const filteredData = useMemo(() => {
     return data.filter(item => {
@@ -85,8 +116,8 @@ export default function PageTelephony({ permissions = [] }) {
         
       const matchesCategory = !category || item.category === category;
       const matchesStatus = !status || item.status === status;
-      const matchesTeam = !team || (team === "Sem time" ? !item.team_name : item.team_name === team);
-      const matchesSector = !sector || (sector === "Sem setor" ? !item.sector : item.sector === sector);
+      const matchesTeam = !team || (team === "Sem time" ? !item.team_name : (item.team_name && item.team_name.trim().toLowerCase() === team.trim().toLowerCase()));
+      const matchesSector = !sector || (sector === "Sem setor" ? !item.sector : (item.sector && item.sector.trim().toLowerCase() === sector.trim().toLowerCase()));
       
       return matchesSearch && matchesCategory && matchesStatus && matchesTeam && matchesSector;
     });
@@ -349,13 +380,13 @@ export default function PageTelephony({ permissions = [] }) {
           <table className="table">
             <thead>
               <tr>
-                <th>Número</th>
-                <th>Categoria</th>
-                <th>Status</th>
-                <th>Responsável</th>
-                <th>Time / Setor</th>
-                <th style={{ textAlign: "right" }}>Custo / Mês</th>
-                {canManage && <th style={{ textAlign: "right", width: "160px" }}>Ações</th>}
+                <th style={{ whiteSpace: "nowrap" }}>Número</th>
+                <th style={{ whiteSpace: "nowrap" }}>Categoria</th>
+                <th style={{ whiteSpace: "nowrap" }}>Status</th>
+                <th style={{ whiteSpace: "nowrap" }}>Responsável</th>
+                <th style={{ whiteSpace: "nowrap" }}>Time / Setor</th>
+                <th style={{ textAlign: "right", whiteSpace: "nowrap" }}>Custo / Mês</th>
+                {canManage && <th style={{ textAlign: "right", whiteSpace: "nowrap", width: "190px" }}>Ações</th>}
               </tr>
             </thead>
             <tbody>
@@ -370,36 +401,40 @@ export default function PageTelephony({ permissions = [] }) {
                     }
                   }}
                 >
-                  <td>
+                  <td style={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>
                     <div className="table-title">{item.display_number}</div>
                     <div className="table-subtitle font-mono">{item.normalized_number}</div>
                   </td>
-                  <td className="capitalize">{item.category.replace('_', ' ')}</td>
-                  <td>
+                  <td className="capitalize" style={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>{item.category.replace('_', ' ')}</td>
+                  <td style={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>
                     <StatusPill 
                       status={item.status === 'ativo' ? 'success' : item.status === 'inativo' ? 'neutral' : 'warning'} 
                       label={item.status.replace('_', ' ')} 
                     />
                   </td>
-                  <td>{item.responsible_name || "—"}</td>
-                  <td>
+                  <td style={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>{item.responsible_name || "—"}</td>
+                  <td style={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>
                     <div className="table-title">{item.team_name || "—"}</div>
                     {item.sector && <div className="table-subtitle">{item.sector}</div>}
                   </td>
-                  <td style={{ textAlign: "right" }}>{formatCurrency(Number(item.monthly_fee || 0))}</td>
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap", verticalAlign: "middle" }}>{formatCurrency(Number(item.monthly_fee || 0))}</td>
                   {canManage && (
-                    <td style={{ textAlign: "right" }}>
-                      <div className="flex justify-end gap-2">
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap", verticalAlign: "middle", width: "190px" }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: "8px", flexWrap: "nowrap" }}>
                         <button 
+                          type="button"
                           className="btn btn--ghost btn--sm" 
                           onClick={(e) => { e.stopPropagation(); handleToggleStatus(item); }}
                           title={item.status === 'ativo' ? 'Desativar linha' : 'Ativar linha'}
+                          style={{ whiteSpace: "nowrap", flexShrink: 0, height: "30px", padding: "4px 10px", fontSize: "12px" }}
                         >
                           {item.status === 'ativo' ? 'Desativar' : 'Ativar'}
                         </button>
                         <button 
-                          className="btn btn--ghost btn--sm" 
+                          type="button"
+                          className="btn btn--outline btn--sm" 
                           onClick={(e) => { e.stopPropagation(); setSelectedItem(item); setIsModalOpen(true); }}
+                          style={{ whiteSpace: "nowrap", flexShrink: 0, height: "30px", padding: "4px 10px", fontSize: "12px" }}
                         >
                           Editar
                         </button>
