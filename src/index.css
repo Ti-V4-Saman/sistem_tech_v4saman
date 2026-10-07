@@ -245,9 +245,10 @@ p{color:var(--text-secondary);line-height:1.6}
 /* ── 7. BOTOES ── */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-2);font-family:var(--font-sans);font-size:13px;font-weight:600;border:1px solid transparent;border-radius:var(--r-md);padding:8px 16px;cursor:pointer;transition:all .2s cubic-bezier(0.4, 0, 0.2, 1)}
 .btn--primary{background:var(--color-primary);color:var(--color-primary-fg);box-shadow:var(--sh-xs)}
-.btn--primary:hover{background:var(--color-primary-hover);box-shadow:var(--sh-brand);transform:translateY(-1px)}
+.btn--primary:hover{background:var(--color-primary-hover);box-shadow:var(--sh-brand);transform:translateY(-1px) scale(1.02)}
 .btn--outline{background:var(--bg-card);color:var(--text-primary);border-color:var(--border);box-shadow:var(--sh-xs)}
-.btn--outline:hover{background:var(--bg-secondary);transform:translateY(-1px)}
+.btn--outline:hover{background:var(--bg-secondary);transform:translateY(-1px) scale(1.02)}
+.btn:active{transform:scale(0.97)!important}
 .btn--ghost{background:transparent;color:var(--text-secondary)}
 .btn--ghost:hover{background:var(--bg-secondary);color:var(--text-primary)}
 

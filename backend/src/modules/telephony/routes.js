@@ -90,7 +90,7 @@ telephonyRoutes.get('/', requirePermission('telephony.view'), asyncHandler(async
   const team = req.query.team;
   const requestedLimit = Number.parseInt(req.query.limit, 10);
   const requestedOffset = Number.parseInt(req.query.offset, 10);
-  const limit = Math.min(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 50, 100);
+  const limit = Math.min(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 50, 1000);
   const offset = Math.max(Number.isFinite(requestedOffset) ? requestedOffset : 0, 0);
 
   const params = [req.user.organization_id];
@@ -132,12 +132,12 @@ telephonyRoutes.post('/', requirePermission('telephony.manage'), audit('telephon
   if (!normalized_number || !display_number || !category || !status) throw new HttpError(400, 'Missing required fields.');
 
   try {
-    const [result] = await query(
+    const { insertId } = await query(
       `INSERT INTO phone_numbers (organization_id, normalized_number, display_number, category, routing, monthly_fee, status, responsible_name, sector, team_name, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.user.organization_id, normalized_number, display_number, category, routing || null, monthly_fee || null, status, responsible_name || null, sector || null, team_name || null, notes || null]
+      [req.user.organization_id, normalized_number, display_number, category, routing || null, monthly_fee !== undefined && monthly_fee !== null ? monthly_fee : null, status, responsible_name || null, sector || null, team_name || null, notes || null]
     );
-    const { rows } = await query(`SELECT * FROM phone_numbers WHERE id = ?`, [result.insertId]);
+    const { rows } = await query(`SELECT * FROM phone_numbers WHERE id = ?`, [insertId]);
     created(res, rows[0]);
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {

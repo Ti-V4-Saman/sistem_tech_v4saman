@@ -97,12 +97,12 @@ flowTemplateRoutes.post('/', requirePermission('flows.manage'), audit('flow_temp
   if (!name || !slug) throw new HttpError(400, 'Name and slug are required.');
 
   try {
-    const [result] = await query(
+    const { insertId } = await query(
       `INSERT INTO flow_templates (organization_id, name, slug, description, category, webhook_url, form_schema, is_active, display_order)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [req.user.organization_id, name, slug, description || null, category || null, webhook_url || null, form_schema ? JSON.stringify(form_schema) : null, is_active !== undefined ? is_active : true, display_order || 0]
     );
-    const { rows } = await query(`SELECT * FROM flow_templates WHERE id = ?`, [result.insertId]);
+    const { rows } = await query(`SELECT * FROM flow_templates WHERE id = ?`, [insertId]);
     created(res, rows[0]);
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -152,7 +152,7 @@ flowTemplateRoutes.patch('/:id', requirePermission('flows.manage'), audit('flow_
 flowTemplateRoutes.get('/requests', requirePermission('flows.view'), asyncHandler(async (req, res) => {
   const requestedLimit = Number.parseInt(req.query.limit, 10);
   const requestedOffset = Number.parseInt(req.query.offset, 10);
-  const limit = Math.min(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 50, 100);
+  const limit = Math.min(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 50, 1000);
   const offset = Math.max(Number.isFinite(requestedOffset) ? requestedOffset : 0, 0);
 
   const { rows } = await query(

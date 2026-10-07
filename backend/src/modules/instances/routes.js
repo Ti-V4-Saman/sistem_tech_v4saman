@@ -10,7 +10,7 @@ instanceRoutes.get('/', requirePermission('instances.view'), asyncHandler(async 
   const search = req.query.search ? `%${String(req.query.search).trim()}%` : null;
   const requestedLimit = Number.parseInt(req.query.limit, 10);
   const requestedOffset = Number.parseInt(req.query.offset, 10);
-  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 100, 1), 200);
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 100, 1), 1000);
   const offset = Math.max(Number.isFinite(requestedOffset) ? requestedOffset : 0, 0);
 
   let where = 'WHERE c.organization_id = ?';

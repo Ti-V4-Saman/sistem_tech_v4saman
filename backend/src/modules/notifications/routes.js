@@ -60,7 +60,7 @@ function canAccessNotification(req, notification) {
 notificationRoutes.get('/', requirePermission('notifications.view'), asyncHandler(async (req, res) => {
   await ensureAutomationErrorNotifications(req.user.organization_id);
 
-  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 100);
+  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 1000);
   const { rows } = await query(
     `SELECT id, organization_id, user_id, role_slug, title, description, type, priority, status,
             entity_type, entity_id, metadata, read_at, created_at, updated_at

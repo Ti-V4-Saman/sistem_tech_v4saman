@@ -60,7 +60,7 @@ clientRoutes.get('/', requirePermission('clients.view'), asyncHandler(async (req
   const search = req.query.search ? `%${String(req.query.search).trim()}%` : null;
   const requestedLimit = Number.parseInt(req.query.limit, 10);
   const requestedOffset = Number.parseInt(req.query.offset, 10);
-  const limit = Math.min(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 50, 100);
+  const limit = Math.min(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 50, 1000);
   const offset = Math.max(Number.isFinite(requestedOffset) ? requestedOffset : 0, 0);
 
   const params = [req.user.organization_id];
