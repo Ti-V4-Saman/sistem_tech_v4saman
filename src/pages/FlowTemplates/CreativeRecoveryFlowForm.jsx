@@ -3,7 +3,7 @@ import { api } from "../../services/api";
 
 const WEBHOOK_URL = "https://n8ops.v4saman.com/webhook/tecar-recuperacao-criativos-dashboard";
 
-export function CreativeRecoveryFlowForm() {
+export function CreativeRecoveryFlowForm({ embedded = false }) {
   const [formData, setFormData] = useState({
     accountId: "",
     creativeId: "",
@@ -88,7 +88,7 @@ export function CreativeRecoveryFlowForm() {
   };
 
   return (
-    <div className="v4-creative-recovery-wrapper">
+    <div className={`v4-creative-recovery-wrapper ${embedded ? "v4-creative-recovery-wrapper--embedded" : ""}`}>
       <style>{`
         .v4-creative-recovery-wrapper {
           width: 100%;
@@ -97,6 +97,7 @@ export function CreativeRecoveryFlowForm() {
           padding: 10px 0 40px;
           font-family: inherit;
         }
+        .v4-creative-recovery-wrapper--embedded { max-width: 780px; padding-top: 0; }
 
         .v4-flow-header {
           margin-bottom: 28px;
@@ -273,13 +274,13 @@ export function CreativeRecoveryFlowForm() {
         }
       `}</style>
 
-      <div className="v4-flow-header">
+      {!embedded && <div className="v4-flow-header">
         <span className="v4-flow-badge">META ADS • RECUPERAÇÃO DE CRIATIVOS</span>
         <h1 className="v4-flow-title">Recuperação Criativos Meta</h1>
         <p className="v4-flow-subtitle">
           Dispare a automação de recuperação de criativos da Meta informando o ID da Conta e o ID do Criativo.
         </p>
-      </div>
+      </div>}
 
       <div className="v4-flow-card">
         {statusMessage && (

@@ -1,10 +1,47 @@
 import { HttpError } from '../utils/http.js';
 import { verifyToken } from '../utils/crypto.js';
 import { query } from '../db/pool.js';
+import { env } from '../config/env.js';
+
+export const DEVELOPMENT_AUTH_TOKEN = 'development-auth-bypass';
+
+async function getTestBypassUser() {
+  const { rows } = await query(
+    `SELECT u.id, u.organization_id, u.name, u.email, u.status,
+            ar.slug AS access_role_slug,
+            jr.slug AS job_role_slug,
+            jr.name AS job_role_name,
+            t.slug AS team_slug,
+            t.name AS team_name
+       FROM users u
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       LEFT JOIN roles ar ON ar.id = ur.role_id
+       LEFT JOIN user_profiles up ON up.user_id = u.id
+       LEFT JOIN job_roles jr ON jr.id = up.job_role_id
+       LEFT JOIN teams t ON t.id = up.team_id
+      WHERE LOWER(u.email) = LOWER(?) AND u.status = 'active'
+      LIMIT 1`,
+    [env.testAuthBypassUserEmail]
+  );
+
+  if (!rows[0]) {
+    throw new HttpError(503, 'Test authentication bypass user was not found or is inactive.');
+  }
+
+  return rows[0];
+}
 
 export async function authenticate(req, res, next) {
   try {
     const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
+
+    if (env.testAuthBypass && token === DEVELOPMENT_AUTH_TOKEN) {
+      req.user = await getTestBypassUser();
+      req.permissions = ['*'];
+      req.testAuthBypass = true;
+      return next();
+    }
+
     const payload = verifyToken(token);
     if (!payload?.sub) throw new HttpError(401, 'Authentication required.');
 

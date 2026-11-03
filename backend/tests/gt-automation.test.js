@@ -15,7 +15,9 @@ vi.mock('../src/middleware/auth.js', () => ({
       return res.status(403).json({ error: 'Forbidden' });
     }
     next();
-  }
+  },
+  requireAdmin: (req, res, next) => next(),
+  requireRole: () => (req, res, next) => next(),
 }));
 
 describe('GT Automation Administrative APIs', () => {

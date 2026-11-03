@@ -111,7 +111,7 @@ function ExecutionModal({ automation, onClose }) {
       <div className="doc-modal execution-modal" onClick={(event) => event.stopPropagation()}>
         <div className="doc-modal__header">
           <span className="doc-modal__title">Execuções — {automation.name}</span>
-          <button className="doc-modal__close" onClick={onClose}>✕</button>
+          <button type="button" className="doc-modal__close" onClick={onClose} aria-label="Fechar modal">✕</button>
         </div>
         <div className="doc-modal__body">
           <div className="execution-summary">
@@ -957,7 +957,7 @@ export default function PageClients({ session }) {
             <div className="doc-modal" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 720, width: "100%" }}>
               <div className="doc-modal__header">
                 <span className="doc-modal__title">Acessos — {clientDetail.name}</span>
-                <button className="doc-modal__close" onClick={() => setShowAccessModal(false)}>✕</button>
+                <button type="button" className="doc-modal__close" onClick={() => setShowAccessModal(false)} aria-label="Fechar modal">✕</button>
               </div>
               <div className="doc-modal__body">
                 {showAccessForm ? (
@@ -1507,7 +1507,7 @@ export default function PageClients({ session }) {
           <div className="doc-modal" onClick={(event) => event.stopPropagation()}>
             <div className="doc-modal__header">
               <span className="doc-modal__title">Novo Cliente</span>
-              <button className="doc-modal__close" onClick={() => setShowCreateModal(false)}>✕</button>
+              <button type="button" className="doc-modal__close" onClick={() => setShowCreateModal(false)} aria-label="Fechar modal">✕</button>
             </div>
             <div className="doc-modal__body">
               <div className="form-grid">

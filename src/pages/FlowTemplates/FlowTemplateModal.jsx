@@ -83,35 +83,38 @@ export function FlowTemplateModal({ template, onClose, onSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
-      <div className="bg-surface rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-        <div className="p-4 border-b border-border flex justify-between items-center">
-          <h2 className="text-lg font-bold">{template ? "Editar Template de Fluxo" : "Novo Template de Fluxo"}</h2>
-          <button onClick={onClose} className="text-muted hover:text-foreground">✕</button>
+    <div className="doc-overlay" onMouseDown={onClose}>
+      <div className="doc-modal flow-modal" onMouseDown={event => event.stopPropagation()}>
+        <div className="doc-modal__header">
+          <div>
+            <span className="doc-modal__eyebrow">Modelos de fluxo</span>
+            <h2 className="doc-modal__title">{template ? "Editar template" : "Novo template"}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="doc-modal__close" aria-label="Fechar modal">✕</button>
         </div>
         
-        <div className="p-4 overflow-y-auto flex-1">
-          {error && <div className="p-3 mb-4 text-sm text-danger bg-danger/10 rounded">{error}</div>}
+        <div className="doc-modal__body flow-modal__body">
+          {error && <div className="form-message form-message--danger" role="alert">{error}</div>}
           
-          <form id="templateForm" onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <form id="templateForm" onSubmit={handleSubmit} className="flow-form">
+            <div className="g2">
               <div className="form-group">
-                <label className="label">Nome do Template*</label>
+                <label>Nome do template *</label>
                 <input 
                   type="text" 
                   name="name" 
-                  className="input w-full" 
+                  className="editor-sidebar__input"
                   required 
                   value={formData.name} 
                   onChange={handleChange} 
                 />
               </div>
               <div className="form-group">
-                <label className="label">Slug (Identificador Único)*</label>
+                <label>Slug (identificador único) *</label>
                 <input 
                   type="text" 
                   name="slug" 
-                  className="input w-full font-mono text-sm" 
+                  className="editor-sidebar__input input--mono"
                   required 
                   value={formData.slug} 
                   onChange={handleChange} 
@@ -120,40 +123,40 @@ export function FlowTemplateModal({ template, onClose, onSuccess }) {
             </div>
 
             <div className="form-group">
-              <label className="label">Descrição</label>
+              <label>Descrição</label>
               <input 
                 type="text" 
                 name="description" 
-                className="input w-full" 
+                className="editor-sidebar__input"
                 value={formData.description} 
                 onChange={handleChange} 
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="flow-form__triple">
               <div className="form-group">
-                <label className="label">Categoria</label>
+                <label>Categoria</label>
                 <input 
                   type="text" 
                   name="category" 
-                  className="input w-full" 
+                  className="editor-sidebar__input"
                   placeholder="Ex: Integrações" 
                   value={formData.category} 
                   onChange={handleChange} 
                 />
               </div>
               <div className="form-group">
-                <label className="label">Ordem de Exibição</label>
+                <label>Ordem de exibição</label>
                 <input 
                   type="number" 
                   name="display_order" 
-                  className="input w-full" 
+                  className="editor-sidebar__input"
                   value={formData.display_order} 
                   onChange={handleChange} 
                 />
               </div>
-              <div className="form-group flex items-end pb-2">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className="form-group form-group--checkbox">
+                <label className="checkbox-field">
                   <input 
                     type="checkbox" 
                     name="is_active" 
@@ -166,34 +169,34 @@ export function FlowTemplateModal({ template, onClose, onSuccess }) {
             </div>
 
             <div className="form-group">
-              <label className="label">URL do Webhook (n8n)*</label>
+              <label>URL do webhook (n8n) *</label>
               <input 
                 type="url" 
                 name="webhook_url" 
-                className="input w-full font-mono text-sm" 
+                className="editor-sidebar__input input--mono"
                 placeholder="https://n8n.exemplo.com/webhook/..." 
                 required 
                 value={formData.webhook_url} 
                 onChange={handleChange} 
               />
-              <p className="text-xs text-muted mt-1">A URL receberá um POST JSON com os campos do formulário.</p>
+              <p className="field-helper">A URL receberá um POST JSON com os campos do formulário.</p>
             </div>
 
             <div className="form-group">
-              <label className="label">Form Schema (JSON)*</label>
+              <label>Form schema (JSON) *</label>
               <textarea 
-                className="input w-full font-mono text-sm min-h-[200px]" 
+                className="editor-sidebar__input input--mono flow-schema-input"
                 required 
                 value={schemaText} 
                 onChange={e => setSchemaText(e.target.value)} 
               />
-              <p className="text-xs text-muted mt-1">Formato: <code>{`{ "fields": [ { "name": "campo", "label": "Título", "type": "text" } ] }`}</code></p>
+              <p className="field-helper">Formato: <code>{`{ "fields": [ { "name": "campo", "label": "Título", "type": "text" } ] }`}</code></p>
             </div>
           </form>
         </div>
 
-        <div className="p-4 border-t border-border flex justify-end gap-2 bg-muted/5">
-          <button type="button" className="btn btn--secondary" onClick={onClose} disabled={loading}>Cancelar</button>
+        <div className="modal-actions">
+          <button type="button" className="btn btn--outline" onClick={onClose} disabled={loading}>Cancelar</button>
           <button type="submit" form="templateForm" className="btn btn--primary" disabled={loading}>
             {loading ? "Salvando..." : "Salvar Template"}
           </button>

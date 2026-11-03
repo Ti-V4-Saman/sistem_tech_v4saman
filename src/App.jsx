@@ -9,7 +9,6 @@ import { getInitials, formatShortName } from "./utils/formatters";
 // Pages
 const PageHome = lazy(() => import("./pages/Home/PageHome"));
 const PageDashboard = lazy(() => import("./pages/Dashboard/PageDashboard"));
-const PageAdsDashboard = lazy(() => import("./pages/Dashboards/PageAdsDashboard"));
 const PageClients = lazy(() => import("./pages/Clients/PageClients"));
 const PageDocuments = lazy(() => import("./pages/Documents/PageDocuments"));
 const PageUsers = lazy(() => import("./pages/Users/PageUsers"));
@@ -23,20 +22,27 @@ const PageAboutUs = lazy(() => import("./pages/AboutUs/PageAboutUs"));
 const PageControlArea = lazy(() => import("./pages/ControlArea/PageControlArea"));
 import LoginScreen from "./pages/Login/LoginScreen";
 import { CommandPalette } from "./components/app/CommandPalette";
+import { BrandMark } from "./components/app/BrandMark";
 
 const NAV = [
-  { id: "home", path: "/", label: "Início", icon: <Icons.Dashboard /> },
-  { id: "dashboard", path: "/dashboard", label: "Operação", icon: () => <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" /></svg> },
-  { id: "clients", path: "/clientes", label: "Clientes", icon: <Icons.Users /> },
-  { id: "docs", path: "/documentos", label: "Documentos", icon: <Icons.Doc /> },
-  { id: "about", path: "/sobre-nos", label: "Sobre Nós", icon: <Icons.Sparkles /> },
-  { id: "telephony", path: "/telefonia", label: "Telefonia", icon: <Icons.Phone />, isAdminOnly: true },
-  { id: "flows", path: "/fluxos", label: "Modelos de Fluxos", icon: <Icons.Zap />, isAdminOnly: true, isDev: true },
-  { id: "dashboards-ads", path: "/dashboards", label: "Dashboards", icon: <Icons.TrendingUp />, isAdminOnly: true, isDev: true },
-  { id: "alerts", path: "/alertas", label: "Alertas", icon: <Icons.Bell />, isAdminOnly: true },
-  { id: "users", path: "/usuarios", label: "Usuários", icon: <Icons.Lock />, isAdminOnly: true },
-  { id: "control", path: "/controle", label: "Área de Controle", icon: <Icons.Lock />, isAdminOnly: true },
+  { id: "home", path: "/", label: "Início", section: "Visão geral", icon: <Icons.Dashboard /> },
+  { id: "dashboard", path: "/dashboard", label: "Operação", section: "Visão geral", icon: <Icons.ChartBar /> },
+  { id: "clients", path: "/clientes", label: "Clientes", section: "Workspace", icon: <Icons.Users /> },
+  { id: "docs", path: "/documentos", label: "Documentos", section: "Workspace", icon: <Icons.Doc /> },
+  { id: "telephony", path: "/telefonia", label: "Telefonia", section: "Operação", icon: <Icons.Phone />, isAdminOnly: true },
+  { id: "flows", path: "/fluxos", label: "Modelos de Fluxos", section: "Operação", icon: <Icons.Zap />, requiresAdmin: true },
+  { id: "alerts", path: "/alertas", label: "Alertas", section: "Operação", icon: <Icons.Bell />, isAdminOnly: true },
+  { id: "users", path: "/usuarios", label: "Usuários", section: "Administração", icon: <Icons.Users />, isAdminOnly: true },
+  { id: "control", path: "/controle", label: "Área de Controle", section: "Administração", icon: <Icons.Lock />, isAdminOnly: true },
+  { id: "about", path: "/sobre-nos", label: "Sobre Nós", section: "Suporte", icon: <Icons.Sparkles /> },
+  { id: "help", path: "/ajuda", label: "Ajuda & Suporte", section: "Suporte", icon: <Icons.HelpCircle /> },
 ];
+
+const NAV_SECTIONS = ["Visão geral", "Workspace", "Operação", "Administração", "Suporte"];
+const SECONDARY_PAGES = {
+  settings: { label: "Configurações", section: "Administração" },
+  profile: { label: "Minha conta", section: "Preferências" },
+};
 
 export default function App() {
   const navigate = useNavigate();
@@ -47,14 +53,13 @@ export default function App() {
     if (current) return current.id;
     if (location.pathname === "/configuracoes") return "settings";
     if (location.pathname === "/perfil") return "profile";
-    if (location.pathname === "/sobre-nos") return "about";
     return "home";
   };
   const page = getCurrentPageId();
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia("(min-width: 961px)").matches);
   const [session, setSession] = useState(() => api.getStoredSession());
-  const [checkingSession, setCheckingSession] = useState(Boolean(api.getStoredSession()?.accessToken));
+  const [checkingSession, setCheckingSession] = useState(true);
   const [theme, setTheme] = useState(() => localStorage.getItem("techhub.theme") || "dark");
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -63,11 +68,27 @@ export default function App() {
 
   const isAdmin = session?.user?.accessRoleSlug === "admin" || session?.user?.accessRoleSlug === "super-admin";
   const isSuperAdmin = session?.user?.accessRoleSlug === "super-admin";
+  const hasPermission = (permission) => (session?.permissions || []).includes("*") || (session?.permissions || []).includes(permission);
+  const currentNavItem = NAV.find(item => item.id === page) || SECONDARY_PAGES[page] || NAV[0];
+  const unreadCount = notifications.filter(item => item.status === "unread" || item.unread).length;
+  const visibleNav = NAV.filter(item => (
+    (!item.isAdminOnly || isSuperAdmin)
+    && (!item.requiresAdmin || isAdmin)
+    && (!item.requiredPermission || hasPermission(item.requiredPermission))
+  ));
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("techhub.theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const desktopQuery = window.matchMedia("(min-width: 961px)");
+    const syncSidebar = (event) => setSidebarOpen(event.matches);
+    setSidebarOpen(desktopQuery.matches);
+    desktopQuery.addEventListener("change", syncSidebar);
+    return () => desktopQuery.removeEventListener("change", syncSidebar);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -111,11 +132,6 @@ export default function App() {
 
   useEffect(() => {
     let alive = true;
-    if (!api.getStoredSession()?.accessToken) {
-      setCheckingSession(false);
-      return;
-    }
-
     api.me()
       .then((currentSession) => {
         if (!alive) return;
@@ -144,11 +160,11 @@ export default function App() {
     if (navItem) targetPath = navItem.path;
     else if (targetPage === "settings") targetPath = "/configuracoes";
     else if (targetPage === "profile") targetPath = "/perfil";
-    else if (targetPage === "about") targetPath = "/sobre-nos";
     else if (targetPage === "home") targetPath = "/";
 
     navigate(targetPath);
     window.dispatchEvent(new CustomEvent("app:reset-page", { detail: targetPage }));
+    if (window.matchMedia("(max-width: 960px)").matches) setSidebarOpen(false);
   };
 
   const handleLogout = async () => {
@@ -182,43 +198,49 @@ export default function App() {
   if (!session?.accessToken) return <LoginScreen onLogin={setSession} theme={theme} onToggleTheme={toggleTheme} />;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarOpen ? "app-shell--sidebar-open" : "app-shell--sidebar-closed"}`}>
+      {sidebarOpen && <button type="button" className="sidebar-scrim" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} />}
       {sidebarOpen && (
-        <aside className="sidebar">
+        <aside className="sidebar" aria-label="Navegação principal">
           <div className="sidebar__header">
-            <div className="org-switcher" onClick={() => navigateTo("home")}>
-              <img src="/v4-logo.png" alt="Logo" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", marginRight: 8 }} />
-              <span className="org-name">TechOps</span>
-              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{theme === "dark" ? "dark" : "light"}</span>
-            </div>
+            <button type="button" className="org-switcher" onClick={() => navigateTo("home")} aria-label="Ir para o início">
+              <BrandMark compact />
+              <span className="org-identity"><strong>TechOps</strong><small>V4 Company</small></span>
+            </button>
+            <button type="button" className="sidebar__close" onClick={() => setSidebarOpen(false)} aria-label="Fechar menu">×</button>
           </div>
-          <nav className="sidebar__nav" style={{ paddingTop: 8, flex: 1 }}>
-            {NAV.filter(item => {
-              if (item.isAdminOnly) return isSuperAdmin;
-              return true;
-            }).map((item, i) => {
-              if (item.isSection) return <div key={`sec-${i}`} className="nav-section-label">{item.label}</div>;
+          <nav className="sidebar__nav">
+            {NAV_SECTIONS.map(section => {
+              const sectionItems = visibleNav.filter(item => item.section === section);
+              if (sectionItems.length === 0) return null;
               return (
+                <div className="nav-section" key={section}>
+                  <div className="nav-section-label">{section}</div>
+                  {sectionItems.map(item => (
                 <Link
                   key={item.id}
                   to={item.path}
                   className={`nav-item ${page === item.id ? 'nav-item--active' : ''}`}
-                  onClick={() => window.dispatchEvent(new CustomEvent("app:reset-page", { detail: item.id }))}
-                  style={{ textDecoration: 'none', display: 'flex' }}
+                  aria-current={page === item.id ? "page" : undefined}
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent("app:reset-page", { detail: item.id }));
+                    if (window.matchMedia("(max-width: 960px)").matches) setSidebarOpen(false);
+                  }}
                 >
                   <span className="nav-item__icon">{typeof item.icon === 'function' ? item.icon() : item.icon}</span>
                   <span className="nav-item__label">{item.label}</span>
                   <div className="nav-item__side">
-                    {item.isDev && <span className="nav-item__dev-icon" title="Em desenvolvimento"><Icons.AlertTriangle /></span>}
-                    {item.isAdminOnly && <span className="nav-item__lock-icon" title="Acesso restrito para Administrador"><Icons.Lock /></span>}
+                    {(item.isAdminOnly || item.requiresAdmin) && <span className="nav-item__lock-icon" title="Acesso restrito para Administrador"><Icons.Lock /></span>}
                   </div>
                 </Link>
+                  ))}
+                </div>
               );
             })}
           </nav>
-          <div className="sidebar__footer" style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div className="sidebar__footer">
             {isSuperAdmin && (
-              <Link to="/configuracoes" className={`nav-item ${page === 'settings' ? 'nav-item--active' : ''}`} onClick={() => window.dispatchEvent(new CustomEvent("app:reset-page", { detail: "settings" }))} style={{ width: '100%', textAlign: 'left', margin: 0, textDecoration: 'none', display: 'flex' }}>
+              <Link to="/configuracoes" className={`nav-item ${page === 'settings' ? 'nav-item--active' : ''}`} onClick={() => window.dispatchEvent(new CustomEvent("app:reset-page", { detail: "settings" }))}>
                 <span className="nav-item__icon"><Icons.Settings /></span>
                 <span className="nav-item__label">Administrativa</span>
                 <div className="nav-item__side">
@@ -227,14 +249,14 @@ export default function App() {
               </Link>
             )}
 
-            <Link to="/perfil" className={`nav-item ${page === 'profile' ? 'nav-item--active' : ''}`} onClick={() => window.dispatchEvent(new CustomEvent("app:reset-page", { detail: "profile" }))} style={{ width: '100%', textAlign: 'left', margin: 0, textDecoration: 'none', display: 'flex' }}>
+            <Link to="/perfil" className={`nav-item ${page === 'profile' ? 'nav-item--active' : ''}`} onClick={() => window.dispatchEvent(new CustomEvent("app:reset-page", { detail: "profile" }))}>
               <span className="nav-item__icon"><Icons.Users /></span>
               <span className="nav-item__label">Sua Conta</span>
             </Link>
             <button
               className="nav-item"
               onClick={handleLogout}
-              style={{ width: '100%', textAlign: 'left', margin: 0, color: "var(--danger)" }}
+              style={{ color: "var(--danger)" }}
             >
               <span className="nav-item__icon" style={{ color: "var(--danger)" }}>
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -249,141 +271,78 @@ export default function App() {
 
       <div className="main-area">
         <header className="topbar">
-          <div className="topbar__left" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="btn btn--ghost" style={{ padding: "4px 8px" }} onClick={() => setSidebarOpen(!sidebarOpen)}><Icons.Menu /></button>
+          <div className="topbar__left">
+            <button className="icon-button sidebar-toggle" onClick={() => setSidebarOpen(true)} aria-label="Abrir menu" aria-expanded={sidebarOpen}><Icons.Menu /></button>
+            <div className="topbar__context">
+              <span>{currentNavItem.section}</span>
+              <strong>{currentNavItem.label}</strong>
+            </div>
             <button type="button" className="command-trigger" onClick={() => setCommandOpen(true)}>
               <Icons.Search />
-              <span>Buscar no sistema</span>
+              <span>Buscar em todo o sistema...</span>
               <kbd>Ctrl K</kbd>
             </button>
           </div>
-          <div className="topbar__right" style={{ gap: 12, position: "relative" }}>
+          <div className="topbar__right">
             {canSeeNotifications && (
-              <div style={{ position: "relative" }}>
+              <div className="topbar-popover-anchor">
                 <button
-                  className="btn btn--ghost"
+                  className={`icon-button ${showNotifications ? "icon-button--active" : ""}`}
                   onClick={() => {
                     const next = !showNotifications;
                     setShowNotifications(next);
                     if (next) handleMarkAllNotificationsRead();
                   }}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: "50%",
-                    position: "relative",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "all 0.2s",
-                    border: showNotifications ? "1px solid var(--color-primary)" : "1px solid transparent"
-                  }}
                   title="Notificações administrativas"
+                  aria-label={`Notificações${unreadCount ? `, ${unreadCount} não lidas` : ""}`}
+                  aria-expanded={showNotifications}
                 >
                   <span className="bell-icon-wrapper">
                     <Icons.Bell />
                   </span>
-                  {notifications.filter(item => item.status === "unread" || item.unread).length > 0 && (
-                    <span style={{
-                      position: "absolute",
-                      top: 0,
-                      right: 0,
-                      backgroundColor: "var(--danger)",
-                      color: "white",
-                      fontSize: 10,
-                      fontWeight: 800,
-                      borderRadius: "50%",
-                      width: 16,
-                      height: 16,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      boxShadow: "0 0 0 2px var(--bg-card)"
-                    }}>
-                      {notifications.filter(item => item.status === "unread" || item.unread).length}
+                  {unreadCount > 0 && (
+                    <span className="icon-button__badge">
+                      {unreadCount}
                     </span>
                   )}
                 </button>
 
                 {showNotifications && (
                   <>
-                    <div
-                      onClick={() => setShowNotifications(false)}
-                      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
-                    />
+                    <button className="popover-scrim" aria-label="Fechar notificações" onClick={() => setShowNotifications(false)} />
 
-                    <div style={{
-                      position: "absolute",
-                      top: "42px",
-                      right: 0,
-                      width: "360px",
-                      maxHeight: "400px",
-                      backgroundColor: "var(--bg-card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "12px",
-                      boxShadow: "var(--sh-lg)",
-                      zIndex: 1000,
-                      overflowY: "auto",
-                      display: "flex",
-                      flexDirection: "column",
-                      animation: "fadeIn 0.2s ease"
-                    }}>
-                      <div style={{
-                        padding: "14px 18px",
-                        borderBottom: "1px solid var(--border)",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        background: "var(--bg-secondary)"
-                      }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-primary)" }}>Notificações</span>
+                    <div className="notification-popover" role="dialog" aria-label="Notificações">
+                      <div className="notification-popover__header">
+                        <div><strong>Notificações</strong><span>{notifications.length} registros recentes</span></div>
                         {notifications.some(item => item.status === "unread" || item.unread) ? (
-                          <button className="btn btn--ghost" style={{ padding: "4px 8px", fontSize: 11 }} onClick={handleMarkAllNotificationsRead}>Marcar lidas</button>
+                          <button className="btn btn--ghost btn--sm" onClick={handleMarkAllNotificationsRead}>Marcar lidas</button>
                         ) : (
-                          <span className="badge" style={{ fontSize: 11 }}>em dia</span>
+                          <span className="badge badge--success">Em dia</span>
                         )}
                       </div>
 
-                      <div style={{ overflowY: "auto", flex: 1 }}>
+                      <div className="notification-popover__list">
                         {notifications.length === 0 ? (
-                          <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-                            ✨ Tudo certo! Nenhuma notificação pendente.
+                          <div className="notification-popover__empty">
+                            <Icons.CheckCircle />
+                            <strong>Tudo certo por aqui</strong>
+                            <span>Nenhuma notificação pendente.</span>
                           </div>
                         ) : (
                           notifications.map((n, idx) => (
-                            <div
+                            <button
+                              type="button"
                               key={n.id || idx}
-                              style={{
-                                padding: "12px 18px",
-                                borderBottom: idx === notifications.length - 1 ? "none" : "1px solid var(--border-muted)",
-                                display: "flex",
-                                gap: 12,
-                                alignItems: "flex-start",
-                                transition: "background 0.2s"
-                              }}
+                              className={`notification-item ${(n.status === "unread" || n.unread) ? "notification-item--unread" : ""}`}
                               onClick={() => handleMarkNotificationRead(n.id)}
-                              onMouseOver={e => e.currentTarget.style.backgroundColor = "var(--bg-secondary)"}
-                              onMouseOut={e => e.currentTarget.style.backgroundColor = "transparent"}
                             >
-                              <div style={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: "50%",
-                                backgroundColor: (n.status === "unread" || n.unread) ? "var(--danger)" : "var(--text-muted)",
-                                marginTop: 6,
-                                flexShrink: 0
-                              }} />
-                              <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                                <span style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                  {n.title}
-                                </span>
-                                <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                                  Origem: <strong style={{ color: "var(--text-primary)" }}>{n.client || n.type || "Sistema"}</strong>
-                                </span>
-                                <span style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-                                  ⏱️ {n.occurred_at || n.createdAt}
-                                </span>
+                              <span className="notification-item__dot" />
+                              <div className="notification-item__body">
+                                <strong>{n.title}</strong>
+                                <span>{n.client || n.type || "Sistema"}</span>
+                                <small>{n.occurred_at || n.createdAt}</small>
                               </div>
-                            </div>
+                            </button>
                           ))
                         )}
                       </div>
@@ -393,12 +352,13 @@ export default function App() {
               </div>
             )}
 
-            <button className="theme-toggle" onClick={toggleTheme}>{theme === "dark" ? "☀️ Claro" : "🌙 Escuro"}</button>
-            <div style={{ position: "relative" }}>
+            <button className="theme-toggle" onClick={toggleTheme} title={`Ativar tema ${theme === "dark" ? "claro" : "escuro"}`} aria-label={`Ativar tema ${theme === "dark" ? "claro" : "escuro"}`}>{theme === "dark" ? <Icons.Sun /> : <Icons.Moon />}</button>
+            <div className="topbar-popover-anchor">
               <button
-                className="btn btn--ghost"
+                className={`user-menu-trigger ${userMenuOpen ? "user-menu-trigger--active" : ""}`}
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                style={{ gap: 10, display: "flex", alignItems: "center" }}
+                aria-label="Abrir menu da conta"
+                aria-expanded={userMenuOpen}
               >
                 <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
                   {session.user?.name ? formatShortName(session.user.name) : session.user?.email}
@@ -410,29 +370,12 @@ export default function App() {
 
               {userMenuOpen && (
                 <>
-                  <div
-                    onClick={() => setUserMenuOpen(false)}
-                    style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
-                  />
-                  <div style={{
-                    position: "absolute",
-                    top: "42px",
-                    right: 0,
-                    width: "160px",
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "10px",
-                    boxShadow: "var(--sh-lg)",
-                    zIndex: 1000,
-                    display: "flex",
-                    flexDirection: "column",
-                    padding: "6px",
-                    animation: "fadeIn 0.15s ease"
-                  }}>
+                    <button className="popover-scrim" aria-label="Fechar menu da conta" onClick={() => setUserMenuOpen(false)} />
+                  <div className="user-menu-popover">
+                    <div className="user-menu-popover__identity"><strong>{session.user?.name}</strong><span>{session.user?.email}</span></div>
                     <button
                       className="nav-item"
-                      onClick={() => { setPage("profile"); setUserMenuOpen(false); }}
-                      style={{ margin: 0, width: "100%", justifyContent: "flex-start", gap: 8, fontSize: "13px" }}
+                      onClick={() => { navigateTo("profile"); setUserMenuOpen(false); }}
                     >
                       <span className="nav-item__icon"><Icons.Users /></span>
                       <span className="nav-item__label">Sua Conta</span>
@@ -463,12 +406,12 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<PageHome session={session} setPage={navigateTo} />} />
                   <Route path="/dashboard" element={<PageDashboard setPage={navigateTo} isAdmin={isAdmin} />} />
-                  <Route path="/dashboards" element={isSuperAdmin ? <PageAdsDashboard /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                   <Route path="/clientes" element={<PageClients session={session} />} />
                   <Route path="/documentos" element={<PageDocuments session={session} />} />
                   <Route path="/sobre-nos" element={<PageAboutUs session={session} setPage={navigateTo} />} />
+                  <Route path="/ajuda" element={<PageHelp setPage={navigateTo} session={session} />} />
                   <Route path="/telefonia" element={isSuperAdmin ? <PageTelephony permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
-                  <Route path="/fluxos" element={isSuperAdmin ? <PageFlowTemplates permissions={session?.permissions || []} session={session} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
+                  <Route path="/fluxos" element={isAdmin ? <PageFlowTemplates permissions={session?.permissions || []} session={session} setPage={navigateTo} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                   <Route path="/alertas" element={isSuperAdmin ? <PageAlerts permissions={session?.permissions || []} /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                   <Route path="/usuarios" element={isSuperAdmin ? <PageUsers /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                   <Route path="/perfil" element={<PageProfile session={session} onSessionUpdate={setSession} />} />

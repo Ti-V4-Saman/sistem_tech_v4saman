@@ -7,6 +7,36 @@ import { StatusPill } from "../../components/ui/StatusPill";
 import { formatCurrency } from "../../utils/formatters";
 import { TelephonyModal } from "./TelephonyModal";
 
+function parseCsvRows(text, separator) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '"') {
+      if (quoted && text[index + 1] === '"') { field += '"'; index += 1; }
+      else quoted = !quoted;
+    } else if (char === separator && !quoted) {
+      row.push(field.trim()); field = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && text[index + 1] === "\n") index += 1;
+      row.push(field.trim()); field = "";
+      if (row.some(value => value !== "")) rows.push(row);
+      row = [];
+    } else field += char;
+  }
+  row.push(field.trim());
+  if (row.some(value => value !== "")) rows.push(row);
+  return rows;
+}
+
+function normalizeCsvHeader(value) {
+  const header = String(value || "").replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const aliases = { numero: "normalized_number", numero_normalizado: "normalized_number", telefone: "normalized_number", numero_exibicao: "display_number", categoria: "category", roteamento: "routing", custo_mensal: "monthly_fee", situacao: "status", responsavel: "responsible_name", setor: "sector", time: "team_name", observacoes: "notes" };
+  return aliases[header] || header;
+}
+
 export default function PageTelephony({ permissions = [] }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +52,7 @@ export default function PageTelephony({ permissions = [] }) {
   
   const [selectedItem, setSelectedItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -40,6 +71,23 @@ export default function PageTelephony({ permissions = [] }) {
     };
     window.addEventListener("app:reset-page", handleResetPage);
     return () => window.removeEventListener("app:reset-page", handleResetPage);
+  }, []);
+
+  useEffect(() => {
+    const requestedSearch = localStorage.getItem("techhub.telephonySearch");
+    if (requestedSearch) {
+      setSearch(requestedSearch);
+      setTempSearch(requestedSearch);
+      localStorage.removeItem("techhub.telephonySearch");
+    }
+    const handleGlobalSearch = event => {
+      const value = String(event.detail || "");
+      setSearch(value);
+      setTempSearch(value);
+      localStorage.removeItem("techhub.telephonySearch");
+    };
+    window.addEventListener("techhub.telephonySearch", handleGlobalSearch);
+    return () => window.removeEventListener("techhub.telephonySearch", handleGlobalSearch);
   }, []);
 
   const canManage = permissions.includes("telephony.manage") || permissions.includes("*");
@@ -157,45 +205,53 @@ export default function PageTelephony({ permissions = [] }) {
   const handleImportCSV = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    
     event.target.value = '';
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const text = e.target.result;
-        const rows = text.split(/\r?\n/).map(r => r.trim()).filter(r => r);
-        const separator = text.includes(';') ? ';' : ',';
-        const headers = rows.shift().split(separator).map(h => h.trim().replace(/^"|"$/g, ''));
-        
-        let imported = 0;
-        setLoading(true);
-        for (const rowText of rows) {
-          const cols = rowText.split(separator).map(c => c.trim().replace(/^"|"$/g, ''));
-          const data = {};
-          headers.forEach((h, i) => { if (cols[i]) data[h] = cols[i]; });
-          
-          if (!data.normalized_number) continue;
-          
+    if (!file.name.toLowerCase().endsWith(".csv")) { alert("Selecione um arquivo no formato CSV."); return; }
+    if (file.size > 5 * 1024 * 1024) { alert("O arquivo CSV deve ter no máximo 5 MB."); return; }
+    try {
+      setImporting(true);
+      const text = await file.text();
+      const firstLine = text.split(/\r?\n/, 1)[0] || "";
+      const separator = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ";" : ",";
+      const rows = parseCsvRows(text, separator);
+      if (rows.length < 2) throw new Error("O arquivo não possui linhas para importar.");
+      const headers = rows.shift().map(normalizeCsvHeader);
+      if (!headers.includes("normalized_number")) throw new Error("Cabeçalho obrigatório ausente: normalized_number (ou numero). ");
+
+      let imported = 0;
+      let skipped = 0;
+      const failures = [];
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+        const record = {};
+        headers.forEach((header, columnIndex) => { record[header] = rows[rowIndex][columnIndex] || ""; });
+        if (!record.normalized_number) { skipped += 1; continue; }
+        try {
+          const fee = Number(String(record.monthly_fee || "0").replace(",", "."));
           await api.createTelephony({
-            normalized_number: data.normalized_number,
-            display_number: data.display_number || data.normalized_number,
-            category: data.category || 'fixo',
-            status: data.status || 'ativo',
-            monthly_fee: data.monthly_fee ? Number(data.monthly_fee) : 0,
-            sector: data.sector || '',
-            team_name: data.team_name || ''
-          }).catch(err => console.error("Ignorado duplicado ou erro:", err));
-          imported++;
+            normalized_number: record.normalized_number,
+            display_number: record.display_number || record.normalized_number,
+            category: record.category || "fixo",
+            routing: record.routing || "",
+            status: record.status || "ativo",
+            monthly_fee: Number.isFinite(fee) ? fee : 0,
+            responsible_name: record.responsible_name || "",
+            sector: record.sector || "",
+            team_name: record.team_name || "",
+            notes: record.notes || "",
+          });
+          imported += 1;
+        } catch (rowError) {
+          failures.push(`linha ${rowIndex + 2}: ${rowError.message || "erro"}`);
         }
-        alert(`Importação concluída. ${imported} registros processados.`);
-        loadData();
-      } catch (err) {
-        alert("Erro ao processar arquivo: " + err.message);
-      } finally {
-        setLoading(false);
       }
-    };
-    reader.readAsText(file);
+      await loadData();
+      const failureMessage = failures.length ? ` ${failures.length} falharam${failures.length <= 3 ? ` (${failures.join("; ")})` : ""}.` : "";
+      alert(`Importação concluída: ${imported} adicionadas, ${skipped} ignoradas.${failureMessage}`);
+    } catch (err) {
+      alert("Erro ao processar arquivo: " + err.message);
+    } finally {
+      setImporting(false);
+    }
   };
 
   const handleToggleStatus = async (item) => {
@@ -215,19 +271,24 @@ export default function PageTelephony({ permissions = [] }) {
         description="Controle de linhas fixas, celulares e VoIP da operação."
         right={
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            {canExport && (
+            {canManage && (
               <>
                 <input type="file" ref={fileInputRef} accept=".csv" style={{ display: 'none' }} onChange={handleImportCSV} />
                 <button 
                   className="btn btn--secondary" 
-                  style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-primary)', gap: '6px' }} 
+                  style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)', gap: '6px' }}
+                  disabled={importing}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  📥 Importar CSV
+                  {importing ? 'Importando...' : '📥 Importar CSV'}
                 </button>
+              </>
+            )}
+            {canExport && (
+              <>
                 <button 
                   className="btn btn--secondary" 
-                  style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-primary)', gap: '6px' }} 
+                  style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)', gap: '6px' }}
                   onClick={handleExportCsv}
                 >
                   📤 Exportar CSV

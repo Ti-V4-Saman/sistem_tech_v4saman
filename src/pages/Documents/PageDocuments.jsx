@@ -765,6 +765,7 @@ export default function PageDocuments({ session }) {
   const [activeTab, setActiveTab] = useState("docs");
   const [pdfFile, setPdfFile] = useState(null);
   const [pdfDragging, setPdfDragging] = useState(false);
+  const [importingFile, setImportingFile] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -816,6 +817,27 @@ export default function PageDocuments({ session }) {
   }, []);
 
   useEffect(() => {
+    if (loading || docs.length === 0) return;
+    const requestedId = localStorage.getItem("techhub.openDocId");
+    if (!requestedId) return;
+    const requestedDoc = docs.find(doc => String(doc.id) === String(requestedId));
+    localStorage.removeItem("techhub.openDocId");
+    if (requestedDoc) setEditingDoc(requestedDoc);
+  }, [docs, loading]);
+
+  useEffect(() => {
+    const handleGlobalOpen = event => {
+      const requestedDoc = docs.find(doc => String(doc.id) === String(event.detail));
+      if (requestedDoc) {
+        setEditingDoc(requestedDoc);
+        localStorage.removeItem("techhub.openDocId");
+      }
+    };
+    window.addEventListener("techhub.openDoc", handleGlobalOpen);
+    return () => window.removeEventListener("techhub.openDoc", handleGlobalOpen);
+  }, [docs]);
+
+  useEffect(() => {
     Promise.all([api.getDocs(), api.getTags(), api.getTemplates()])
       .then(([d, t, tp]) => { 
         setDocs(Array.isArray(d) ? d : []); 
@@ -853,23 +875,40 @@ export default function PageDocuments({ session }) {
   const handleCreateBlank = async () => { try { const newDoc = await api.createDoc({ title: "Novo Documento", content: "<h1>Novo Documento</h1><p>Comece a escrever aqui...</p>", tags: [], category: "", type: "document" }); setDocs(prev => [newDoc, ...prev]); setShowCreateModal(false); setCreateStep("choose"); setEditingDoc(newDoc); } catch (e) { console.error(e); alert("Erro ao criar documento: " + (e.message || "Erro no servidor.")); } };
   const handleCreateFromTemplate = async (template) => { try { const newDoc = await api.createDoc({ title: template.name, content: template.content, tags: [], category: "", type: "document" }); setDocs(prev => [newDoc, ...prev]); setShowCreateModal(false); setCreateStep("choose"); setEditingDoc(newDoc); } catch (e) { console.error(e); alert("Erro ao criar documento a partir do template: " + (e.message || "Erro no servidor.")); } };
 
-  const handleImportFile = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const isPdf = file.name.toLowerCase().endsWith(".pdf"); 
-    const isDocx = file.name.toLowerCase().endsWith(".docx") || file.name.toLowerCase().endsWith(".doc");
-    
-    if (!isPdf && !isDocx) { alert("Por favor, selecione um arquivo no formato PDF ou DOCX."); return; }
-    
+  const validateDocumentFile = (file) => {
+    if (!file) return "Nenhum arquivo selecionado.";
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".pdf") && !name.endsWith(".docx")) return "Selecione um arquivo PDF ou DOCX. O formato DOC antigo não é suportado.";
+    if (file.size > 20 * 1024 * 1024) return "O arquivo deve ter no máximo 20 MB.";
+    return "";
+  };
+
+  const selectDocumentForImport = (file) => {
+    const validationError = validateDocumentFile(file);
+    if (validationError) {
+      alert(validationError);
+      return false;
+    }
+    setPdfFile(file);
+    return true;
+  };
+
+  const importDocumentFile = async (file) => {
+    const validationError = validateDocumentFile(file);
+    if (validationError) {
+      alert(validationError);
+      return;
+    }
+    const isPdf = file.name.toLowerCase().endsWith(".pdf");
     try {
-      setLoading(true);
+      setImportingFile(true);
       const type = isPdf ? "pdf" : "docx"; 
-      const cleanName = file.name.replace(/\.(pdf|docx?)$/i, "");
+      const cleanName = file.name.replace(/\.(pdf|docx)$/i, "");
       let content = "";
       
       if (isPdf) {
         content = await extractTextFromPDF(file);
-      } else if (isDocx) {
+      } else {
         content = await extractHtmlFromDOCX(file);
       }
       
@@ -883,14 +922,20 @@ export default function PageDocuments({ session }) {
       setDocs(prev => [newDoc, ...prev]); 
       setShowCreateModal(false); 
       setCreateStep("choose"); 
+      setPdfFile(null);
       setEditingDoc(newDoc);
     } catch (e) { 
       console.error(e); 
       alert("Erro ao importar documento: " + (e.message || "Erro no servidor.")); 
     } finally {
-      setLoading(false);
+      setImportingFile(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (file) await importDocumentFile(file);
   };
   const handleSaveDoc = async (changes) => { try { const updated = await api.updateDoc(editingDoc.id, changes); setDocs(prev => prev.map(d => d.id === editingDoc.id ? updated : d)); setEditingDoc(updated); } catch (e) { console.error(e); alert("Erro ao salvar documento: " + (e.message || "Erro no servidor.")); } };
   const handleDeleteDoc = async (id) => { try { await api.deleteDoc(id); setDocs(prev => prev.filter(d => d.id !== id)); setEditingDoc(null); } catch (e) { console.error(e); alert("Erro ao excluir documento: " + (e.message || "Verifique se possui permissão ou se o documento existe no banco de dados.")); } };
@@ -937,7 +982,7 @@ export default function PageDocuments({ session }) {
           <div style={{ display: "flex", gap: 8 }}>
             <input 
               type="file" 
-              accept=".pdf,.docx,.doc" 
+              accept=".pdf,.docx"
               style={{ display: "none" }} 
               ref={fileInputRef} 
               onChange={handleImportFile} 
@@ -1235,7 +1280,7 @@ export default function PageDocuments({ session }) {
                 {createStep === "template" && "Escolher Template"}
                 {createStep === "pdf" && "Importar Documento (PDF/DOCX)"}
               </span>
-              <button className="doc-modal__close" onClick={() => { setShowCreateModal(false); setCreateStep("choose"); setPdfFile(null); }}>✕</button>
+              <button type="button" className="doc-modal__close" onClick={() => { setShowCreateModal(false); setCreateStep("choose"); setPdfFile(null); }} aria-label="Fechar modal">✕</button>
             </div>
             <div className="doc-modal__body">
               {createStep === "choose" && (
@@ -1263,12 +1308,12 @@ export default function PageDocuments({ session }) {
               {createStep === "pdf" && (
                 <>
                   <button className="sort-btn" style={{ marginBottom: 16 }} onClick={() => { setCreateStep("choose"); setPdfFile(null); }}>← Voltar</button>
-                  <div className={`pdf-upload ${pdfDragging ? "pdf-upload--active" : ""}`} onDragOver={e => { e.preventDefault(); setPdfDragging(true); }} onDragLeave={() => setPdfDragging(false)} onDrop={e => { e.preventDefault(); setPdfDragging(false); const file = e.dataTransfer.files[0]; if (file) setPdfFile(file); }} onClick={() => fileInputRef.current?.click()}>
+                  <div className={`pdf-upload ${pdfDragging ? "pdf-upload--active" : ""}`} onDragOver={e => { e.preventDefault(); setPdfDragging(true); }} onDragLeave={() => setPdfDragging(false)} onDrop={e => { e.preventDefault(); setPdfDragging(false); const file = e.dataTransfer.files[0]; if (file) selectDocumentForImport(file); }} onClick={() => !importingFile && fileInputRef.current?.click()}>
                     <div className="pdf-upload__icon">📄</div>
                     {pdfFile ? (<><div className="pdf-upload__text" style={{ fontWeight: 600, color: "var(--text-primary)" }}>{pdfFile.name}</div><div className="pdf-upload__hint">{(pdfFile.size / 1024).toFixed(1)} KB</div></>) : (<><div className="pdf-upload__text">Arraste um PDF ou DOCX aqui ou clique para selecionar</div><div className="pdf-upload__hint">Formatos aceitos: .pdf, .docx</div></>)}
                   </div>
-                  <input ref={fileInputRef} type="file" accept=".pdf,.docx,.doc" style={{ display: "none" }} onChange={e => { const file = e.target.files[0]; if (file) setPdfFile(file); }} />
-                  {pdfFile && (<button className="btn btn--primary" style={{ width: "100%", marginTop: 16 }} onClick={() => handlePdfUpload(pdfFile)}>Importar "{pdfFile.name}"</button>)}
+                  <input ref={fileInputRef} type="file" accept=".pdf,.docx" style={{ display: "none" }} onChange={e => { const file = e.target.files[0]; if (file) selectDocumentForImport(file); }} />
+                  {pdfFile && (<button className="btn btn--primary" style={{ width: "100%", marginTop: 16 }} disabled={importingFile} onClick={() => importDocumentFile(pdfFile)}>{importingFile ? "Extraindo e importando..." : `Importar “${pdfFile.name}”`}</button>)}
                 </>
               )}
             </div>

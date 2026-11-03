@@ -3,7 +3,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { query } from '../../db/pool.js';
 import { asyncHandler, HttpError, ok } from '../../utils/http.js';
 import { signToken } from '../../utils/crypto.js';
-import { authenticate } from '../../middleware/auth.js';
+import { authenticate, DEVELOPMENT_AUTH_TOKEN } from '../../middleware/auth.js';
 import { rateLimit } from '../../middleware/security.js';
 import { recordAudit } from '../../middleware/audit.js';
 import { env } from '../../config/env.js';
@@ -25,18 +25,21 @@ authRoutes.get('/config', (req, res) => {
   res.json({
     googleClientId: env.google.clientId || '',
     googleAllowedDomain: env.google.allowedDomain || 'v4company.com',
+    developmentLoginEnabled: env.appEnv !== 'production' && env.testAuthBypass,
   });
 });
 
 const googleClient = env.google.clientId ? new OAuth2Client(env.google.clientId) : null;
 
-async function buildSession(userId) {
-  const permissions = await getPermissions(userId);
+async function buildSession(userId, { testAuthBypass = false } = {}) {
+  const permissions = testAuthBypass ? ['*'] : await getPermissions(userId);
   const view = await getUserViewById(userId);
   if (!view || view.status !== 'active') throw new HttpError(401, 'Invalid user session.');
 
   return {
-    accessToken: signToken({ sub: view.id, permissions }),
+    // This marker is deliberately not a JWT. It only works while the local test
+    // bypass is enabled, so disabling the variable invalidates it immediately.
+    accessToken: testAuthBypass ? DEVELOPMENT_AUTH_TOKEN : signToken({ sub: view.id, permissions }),
     user: mapUserView(view, permissions),
     permissions,
   };
@@ -112,6 +115,20 @@ authRoutes.post('/login', rateLimit({ windowMs: 60_000, limit: 10 }), asyncHandl
   throw new HttpError(410, 'Login por senha foi desativado. Use o login com Google @v4company.com.');
 }));
 
+authRoutes.post('/development', rateLimit({ windowMs: 60_000, limit: 20 }), asyncHandler(async (req, res) => {
+  if (env.appEnv === 'production' || !env.testAuthBypass) {
+    throw new HttpError(404, 'Development login is not available.');
+  }
+
+  const user = await findUserByEmail(env.testAuthBypassUserEmail);
+  if (!user || user.status !== 'active') {
+    throw new HttpError(503, 'Development user was not found or is inactive.');
+  }
+
+  writeAuthAudit(req, user, 'login_development', 'Login de desenvolvimento realizado');
+  ok(res, await buildSession(user.id, { testAuthBypass: true }));
+}));
+
 authRoutes.post('/google', rateLimit({ windowMs: 60_000, limit: 20 }), asyncHandler(async (req, res) => {
   const profile = await verifyGoogleCredential(req.body?.credential);
   const organization = await bootstrapAccessModel();
@@ -158,7 +175,7 @@ authRoutes.post('/google', rateLimit({ windowMs: 60_000, limit: 20 }), asyncHand
 }));
 
 authRoutes.get('/me', authenticate, asyncHandler(async (req, res) => {
-  ok(res, await buildSession(req.user.id));
+  ok(res, await buildSession(req.user.id, { testAuthBypass: req.testAuthBypass }));
 }));
 
 authRoutes.post('/logout', authenticate, asyncHandler(async (req, res) => {

@@ -1,86 +1,76 @@
 import { getGreeting, formatShortName } from "../../utils/formatters";
 import { Icons } from "../../icons/Icons";
-import { AboutSection } from "../../components/about/AboutSection";
+import { BrandMark } from "../../components/app/BrandMark";
 
 /**
  * @module PageHome
- * @description Página inicial com banner de boas-vindas, ações rápidas e área Sobre Nós.
+ * @description Página inicial com banner de boas-vindas e ações rápidas.
  */
 export default function PageHome({ session, setPage }) {
   const rawName = session?.user?.name || "Colaborador";
   const displayName = formatShortName(rawName);
-  const isSuperAdmin = session?.user?.accessRoleSlug === "super-admin";
-
-  const handleScrollToAbout = () => {
-    const elem = document.getElementById("sobre-nos");
-    if (elem) {
-      elem.scrollIntoView({ behavior: "smooth" });
-    } else if (setPage) {
-      setPage("about");
-    }
-  };
+  const role = session?.user?.accessRoleSlug;
+  const isAdmin = role === "admin" || role === "super-admin";
 
   return (
     <div className="home-container">
       <div className="home-card">
-        {/* Character image on the left */}
-        <div className="home-card__left">
-          <img
-            src="/rob-saman.png"
-            alt="Rob Saman"
-            className="home-card__image"
-          />
+        <div className="home-card__left" aria-hidden="true">
+          <div className="home-visual">
+            <div className="home-visual__glow" />
+            <div className="home-visual__core"><BrandMark className="home-visual__brand" /></div>
+            <span className="home-visual__label">V4 Company</span>
+            <div className="home-visual__chip home-visual__chip--one"><Icons.Users /><span>Clientes</span></div>
+            <div className="home-visual__chip home-visual__chip--two"><Icons.Zap /><span>Automações</span></div>
+            <div className="home-visual__chip home-visual__chip--three"><Icons.Doc /><span>Conhecimento</span></div>
+          </div>
         </div>
 
         {/* Content on the right */}
         <div className="home-card__right">
+          <span className="home-card__eyebrow"><i /> TechOps · V4 Company</span>
           <span className="home-card__greeting">
             {getGreeting()}, {displayName}!
           </span>
           <h1 className="home-card__title">
-            Bem-vindo ao<br />
-            <span>TechOps Saman</span>
+            Sua operação,<br />
+            <span>no controle.</span>
           </h1>
           <p className="home-card__description">
-            Estou aqui para ajudar você a navegar pelo sistema. Consulte a Base
-            de Conhecimento para encontrar documentação, tutoriais e respostas
-            para suas dúvidas.
+            Encontre o que precisa e acompanhe sua rotina em uma única central.
           </p>
 
-          <div className="home-buttons-grid">
-            <div className="home-buttons-row">
-              <button
-                className="btn btn--primary"
-                onClick={() => setPage("docs")}
-              >
-                <Icons.Doc /> Base de Conhecimento
+          <div className="home-actions">
+            <div className="home-actions__heading"><strong>Acessos rápidos</strong><span>Comece por onde fizer mais sentido</span></div>
+            <div className="home-actions__grid">
+              <button type="button" className="home-action home-action--primary" onClick={() => setPage("dashboard")}>
+                <span className="home-action__icon"><Icons.ChartBar /></span>
+                <span><strong>Ver operação</strong><small>Indicadores e alertas</small></span>
+                <Icons.ChevronRight />
               </button>
-              <button
-                className="btn btn--outline"
-                onClick={handleScrollToAbout}
-              >
-                <Icons.Sparkles /> Sobre Nós & Cultura
+              <button type="button" className="home-action" onClick={() => setPage("clients")}>
+                <span className="home-action__icon"><Icons.Users /></span>
+                <span><strong>Clientes</strong><small>Contas e integrações</small></span>
+                <Icons.ChevronRight />
               </button>
+              <button type="button" className="home-action" onClick={() => setPage("docs")}>
+                <span className="home-action__icon"><Icons.Doc /></span>
+                <span><strong>Documentos</strong><small>Guias e processos</small></span>
+                <Icons.ChevronRight />
+              </button>
+              {isAdmin && <button type="button" className="home-action" onClick={() => setPage("flows")}>
+                <span className="home-action__icon"><Icons.Zap /></span>
+                <span><strong>Modelos de fluxos</strong><small>Automações guiadas</small></span>
+                <Icons.ChevronRight />
+              </button>}
             </div>
-            
-            {isSuperAdmin && (
-              <button
-                className="btn btn--outline home-btn-admin"
-                onClick={() => setPage("settings")}
-              >
-                <Icons.Settings /> Área Administrativa <span style={{ display: "inline-flex", alignItems: "center", marginLeft: "4px", opacity: 0.8 }} title="Acesso restrito para Administrador"><Icons.Lock /></span>
-              </button>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Embedded Sobre Nós Section */}
-      <AboutSection setPage={setPage} />
-
-      {/* Footer text */}
       <div className="home-footer">
-        <span>TechOps Saman & Co. — Central de Operações</span>
+        <span><strong>TechOps</strong> · Central de Operações</span>
+        <span>V4 Company</span>
       </div>
     </div>
   );

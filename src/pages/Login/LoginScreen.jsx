@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../services/api";
+import { BrandMark } from "../../components/app/BrandMark";
+import { Icons } from "../../icons/Icons";
 
 export default function LoginScreen({ onLogin, theme, onToggleTheme }) {
   const [loading, setLoading] = useState(false);
   const [googleReady, setGoogleReady] = useState(false);
   const [error, setError] = useState("");
+  const [developmentLoginEnabled, setDevelopmentLoginEnabled] = useState(false);
 
   const googleButtonRef = useRef(null);
   const [activeClientId, setActiveClientId] = useState(() => {
@@ -13,21 +16,19 @@ export default function LoginScreen({ onLogin, theme, onToggleTheme }) {
   });
   const [activeDomain, setActiveDomain] = useState(import.meta.env.VITE_GOOGLE_ALLOWED_DOMAIN || "v4company.com");
 
-  // Busca configuração de autenticação no backend se necessário
+  // Busca a configuração pública de autenticação do backend.
   useEffect(() => {
-    if (!activeClientId) {
-      api.getAuthConfig()
-        .then((config) => {
-          if (config?.googleClientId) {
-            setActiveClientId(config.googleClientId);
-          }
-          if (config?.googleAllowedDomain) {
-            setActiveDomain(config.googleAllowedDomain);
-          }
-        })
-        .catch((err) => console.error("Erro ao carregar auth config:", err));
-    }
-  }, [activeClientId]);
+    let alive = true;
+    api.getAuthConfig()
+      .then((config) => {
+        if (!alive) return;
+        if (config?.googleClientId) setActiveClientId(config.googleClientId);
+        if (config?.googleAllowedDomain) setActiveDomain(config.googleAllowedDomain);
+        setDevelopmentLoginEnabled(config?.developmentLoginEnabled === true);
+      })
+      .catch((err) => console.error("Erro ao carregar auth config:", err));
+    return () => { alive = false; };
+  }, []);
 
   // Carrega o SDK do Google Identity Services
   useEffect(() => {
@@ -81,16 +82,29 @@ export default function LoginScreen({ onLogin, theme, onToggleTheme }) {
       shape: "rectangular",
       width: 280,
     });
-  }, [googleReady, activeClientId, activeDomain, onLogin, theme]);
+  }, [googleReady, activeClientId, activeDomain, loading, onLogin, theme]);
+
+  const handleDevelopmentLogin = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const session = await api.loginForDevelopment();
+      onLogin(session);
+    } catch (err) {
+      setError(err.message || "Não foi possível entrar no ambiente de desenvolvimento.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="login-page" style={{ background: theme === "dark" ? "var(--bg-page)" : "#fbfbfb" }}>
-      <button className="theme-toggle login-theme-toggle" onClick={onToggleTheme} type="button">
-        {theme === "dark" ? "☀️ Tema claro" : "🌙 Tema escuro"}
+      <button className="theme-toggle login-theme-toggle" onClick={onToggleTheme} type="button" aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"} title={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"}>
+        {theme === "dark" ? <Icons.Sun /> : <Icons.Moon />}
       </button>
 
       <div
-        className="login-card card"
+        className="login-card"
         style={{
           textAlign: "center",
           display: "flex",
@@ -106,12 +120,13 @@ export default function LoginScreen({ onLogin, theme, onToggleTheme }) {
           maxWidth: "400px",
         }}
       >
-        <img src="/logo.png" alt="Logo" style={{ width: 48, height: 48, borderRadius: 8, marginBottom: 16 }} />
+        <BrandMark />
+        <span className="login-card__eyebrow">Central de operações</span>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>
           TechOps · V4 Company
         </h2>
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 28 }}>
-          Acesse com sua conta corporativa Google.
+          {developmentLoginEnabled ? "Entre rapidamente para testar o sistema." : "Acesse com sua conta corporativa Google."}
         </p>
 
         {error && (
@@ -146,10 +161,22 @@ export default function LoginScreen({ onLogin, theme, onToggleTheme }) {
                 animation: "spin 1s linear infinite",
               }}
             />
-            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Autenticando...</span>
+            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Entrando...</span>
           </div>
         ) : (
-          <div ref={googleButtonRef} style={{ display: "flex", justifyContent: "center", minHeight: "44px" }} />
+          <div className="login-options">
+            {developmentLoginEnabled && (
+              <>
+                <button type="button" className="login-development-button" onClick={handleDevelopmentLogin}>
+                  <Icons.Zap />
+                  <span><strong>Entrar no ambiente de desenvolvimento</strong><small>Sem usar uma conta Google</small></span>
+                  <Icons.ChevronRight />
+                </button>
+                <div className="login-divider"><span>ou entre com Google</span></div>
+              </>
+            )}
+            <div ref={googleButtonRef} style={{ display: "flex", justifyContent: "center", minHeight: "44px" }} />
+          </div>
         )}
 
         {!activeClientId && (
@@ -158,9 +185,13 @@ export default function LoginScreen({ onLogin, theme, onToggleTheme }) {
           </div>
         )}
 
-        <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24 }}>
-          Somente contas do domínio <strong>@{activeDomain}</strong> são aceitas.
-        </p>
+        {developmentLoginEnabled ? (
+          <div className="login-development-note"><span />Modo de desenvolvimento ativo</div>
+        ) : (
+          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 24 }}>
+            Somente contas do domínio <strong>@{activeDomain}</strong> são aceitas.
+          </p>
+        )}
       </div>
     </div>
   );

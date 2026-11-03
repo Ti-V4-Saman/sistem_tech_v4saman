@@ -1,8 +1,24 @@
 import { useState, useEffect } from "react";
 import { api } from "../../services/api";
+import { Icons } from "../../icons/Icons";
 
-export function FlowExecutionModal({ template, onClose }) {
-  const [formData, setFormData] = useState({});
+function normalize(value) {
+  return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function createPrefill(template, context) {
+  if (!context) return {};
+  return (template?.form_schema?.fields || []).reduce((values, field) => {
+    const key = normalize(`${field.name} ${field.label}`);
+    if (key.includes("cliente") && context.client) values[field.name] = context.client;
+    else if ((key.includes("formulario") || key.includes("pagina") || key.includes("landing") || key.includes("url")) && context.assetName) values[field.name] = context.assetName;
+    else if ((key.includes("planilha") || key.includes("sheet") || key.includes("whatsapp") || key.includes("grupo") || key.includes("caixa")) && context.connectionValue) values[field.name] = context.connectionValue;
+    return values;
+  }, {});
+}
+
+export function FlowExecutionModal({ template, initialContext = null, onClose }) {
+  const [formData, setFormData] = useState(() => createPrefill(template, initialContext));
   const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState("");
   const [loading, setLoading] = useState(false);
@@ -11,8 +27,14 @@ export function FlowExecutionModal({ template, onClose }) {
   const [idempotencyKey] = useState(() => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
   useEffect(() => {
-    api.getClients().then(setClients).catch(console.error);
-  }, []);
+    api.getClients().then(items => {
+      setClients(items);
+      if (!initialContext?.client) return;
+      const wanted = normalize(initialContext.client);
+      const match = items.find(client => normalize(client.name) === wanted) || items.find(client => normalize(client.name).includes(wanted) || wanted.includes(normalize(client.name)));
+      if (match) setSelectedClient(String(match.id));
+    }).catch(console.error);
+  }, [initialContext]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -26,7 +48,7 @@ export function FlowExecutionModal({ template, onClose }) {
     setSuccessMsg(null);
     try {
       await api.executeFlowTemplate(template.id, formData, selectedClient || null, idempotencyKey);
-      setSuccessMsg("Fluxo disparado com sucesso! Acompanhe o status no Histórico de Execuções.");
+      setSuccessMsg("Automação criada com sucesso.");
       setTimeout(() => onClose(), 2500);
     } catch (err) {
       setError(err.message || "Erro ao executar o fluxo.");
@@ -38,44 +60,46 @@ export function FlowExecutionModal({ template, onClose }) {
   const schema = template?.form_schema?.fields || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
-      <div className="bg-surface rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="p-4 border-b border-border flex justify-between items-center">
+    <div className="doc-overlay" onMouseDown={onClose}>
+      <div className="doc-modal flow-modal flow-modal--execution" onMouseDown={event => event.stopPropagation()}>
+        <div className="doc-modal__header">
           <div>
-            <h2 className="text-lg font-bold">{template.name}</h2>
-            <p className="text-sm text-muted">{template.description}</p>
+            <span className="doc-modal__eyebrow">Último passo</span>
+            <h2 className="doc-modal__title">Revise os dados</h2>
+            <p className="doc-modal__description">Confira e clique em “Criar automação”.</p>
           </div>
-          <button onClick={onClose} className="text-muted hover:text-foreground">✕</button>
+          <button type="button" onClick={onClose} className="doc-modal__close" aria-label="Fechar modal">✕</button>
         </div>
         
-        <div className="p-4 overflow-y-auto flex-1">
-          {error && <div className="p-3 mb-4 text-sm text-danger bg-danger/10 rounded">{error}</div>}
-          {successMsg && <div className="p-3 mb-4 text-sm text-success bg-success/10 rounded">{successMsg}</div>}
+        <div className="doc-modal__body flow-modal__body">
+          {error && <div className="form-message form-message--danger" role="alert">{error}</div>}
+          {successMsg && <div className="flow-execution-success" role="status"><Icons.CheckCircle /><div><strong>{successMsg}</strong><span>Esta janela fechará automaticamente.</span></div></div>}
           
-          <form id="executionForm" onSubmit={handleSubmit} className="space-y-4">
-            <div className="form-group mb-6">
-              <label className="label">Cliente Relacionado (Opcional)</label>
-              <select className="input w-full" value={selectedClient} onChange={e => setSelectedClient(e.target.value)}>
-                <option value="">Selecione um cliente...</option>
+          {!successMsg && <form id="executionForm" onSubmit={handleSubmit} className="flow-form flow-form--friendly">
+            <div className="flow-selected-template"><Icons.Zap /><div><small>Automação escolhida</small><strong>{template.name}</strong></div></div>
+            <div className="form-group">
+              <label>Vincular a um cliente <small>Opcional</small></label>
+              <select className="editor-sidebar__select" value={selectedClient} onChange={e => setSelectedClient(e.target.value)}>
+                <option value="">Selecione o cliente</option>
                 {clients.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
 
-            <h3 className="text-sm font-semibold border-b border-border pb-2 mb-4">Parâmetros do Fluxo</h3>
+            <h3 className="flow-form__section-title">Informações necessárias</h3>
             
             {schema.length === 0 ? (
-              <p className="text-muted text-sm">Este fluxo não possui parâmetros e pode ser executado diretamente.</p>
+              <div className="flow-form__empty flow-form__ready"><Icons.CheckCircle /><span><strong>Tudo certo</strong>Nenhuma informação adicional é necessária.</span></div>
             ) : (
               schema.map((field, idx) => {
                 if (field.type === "textarea") {
                   return (
                     <div key={idx} className="form-group">
-                      <label className="label">{field.label} {field.required && "*"}</label>
+                      <label>{field.label} {field.required && "*"}</label>
                       <textarea
                         name={field.name}
-                        className="input w-full min-h-[100px]"
+                        className="editor-sidebar__input flow-textarea"
                         required={field.required}
                         value={formData[field.name] || ""}
                         onChange={handleChange}
@@ -86,15 +110,11 @@ export function FlowExecutionModal({ template, onClose }) {
                 
                 if (field.type === "checkbox") {
                   return (
-                    <div key={idx} className="form-group flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        name={field.name}
-                        required={field.required}
-                        checked={formData[field.name] || false}
-                        onChange={handleChange}
-                      />
-                      <label className="label !mb-0">{field.label} {field.required && "*"}</label>
+                    <div key={idx} className="form-group form-group--checkbox">
+                      <label className="checkbox-field">
+                        <input type="checkbox" name={field.name} required={field.required} checked={formData[field.name] || false} onChange={handleChange} />
+                        <span>{field.label} {field.required && "*"}</span>
+                      </label>
                     </div>
                   );
                 }
@@ -102,15 +122,15 @@ export function FlowExecutionModal({ template, onClose }) {
                 if (field.type === "select" && field.options) {
                   return (
                     <div key={idx} className="form-group">
-                      <label className="label">{field.label} {field.required && "*"}</label>
+                      <label>{field.label} {field.required && "*"}</label>
                       <select
                         name={field.name}
-                        className="input w-full"
+                        className="editor-sidebar__select"
                         required={field.required}
                         value={formData[field.name] || ""}
                         onChange={handleChange}
                       >
-                        <option value="">Selecione...</option>
+                        <option value="">Selecione uma opção</option>
                         {field.options.map((opt, oIdx) => (
                           <option key={oIdx} value={opt.value || opt}>{opt.label || opt}</option>
                         ))}
@@ -122,11 +142,11 @@ export function FlowExecutionModal({ template, onClose }) {
                 // Default fallback to text input (text, email, number, url)
                 return (
                   <div key={idx} className="form-group">
-                    <label className="label">{field.label} {field.required && "*"}</label>
+                    <label>{field.label} {field.required && "*"}</label>
                     <input
                       type={field.type || "text"}
                       name={field.name}
-                      className="input w-full"
+                      className="editor-sidebar__input"
                       required={field.required}
                       value={formData[field.name] || ""}
                       onChange={handleChange}
@@ -135,15 +155,15 @@ export function FlowExecutionModal({ template, onClose }) {
                 );
               })
             )}
-          </form>
+          </form>}
         </div>
 
-        <div className="p-4 border-t border-border flex justify-end gap-2 bg-muted/5">
-          <button type="button" className="btn btn--secondary" onClick={onClose} disabled={loading}>Cancelar</button>
-          <button type="submit" form="executionForm" className="btn btn--primary" disabled={loading}>
-            {loading ? "Processando..." : "Executar Fluxo"}
+        {!successMsg && <div className="modal-actions">
+          <button type="button" className="btn btn--outline" onClick={onClose} disabled={loading}><Icons.ArrowLeft /> Voltar</button>
+          <button type="submit" form="executionForm" className="btn btn--primary flow-primary-action" disabled={loading}>
+            {loading ? <><span className="flow-button-spinner" /> Criando...</> : <>Criar automação <Icons.ChevronRight /></>}
           </button>
-        </div>
+        </div>}
       </div>
     </div>
   );

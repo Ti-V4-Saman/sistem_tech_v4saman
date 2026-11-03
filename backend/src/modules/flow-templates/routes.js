@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { query } from '../../db/pool.js';
 import { asyncHandler, created, HttpError, ok } from '../../utils/http.js';
-import { authenticate, requirePermission } from '../../middleware/auth.js';
+import { authenticate, requireAdmin, requirePermission } from '../../middleware/auth.js';
 import { audit } from '../../middleware/audit.js';
 import { createId } from '../../utils/id.js';
 
 export const flowTemplateRoutes = Router();
-flowTemplateRoutes.use(authenticate);
+// Modelos de fluxo contêm detalhes operacionais e webhooks: acesso exclusivo
+// para administradores, independentemente das permissões individuais do usuário.
+flowTemplateRoutes.use(authenticate, requireAdmin);
 
 // List templates (for normal users, don't expose webhook_url)
 flowTemplateRoutes.get('/', requirePermission('flows.view'), asyncHandler(async (req, res) => {

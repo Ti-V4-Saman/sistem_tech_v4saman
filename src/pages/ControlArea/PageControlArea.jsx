@@ -267,7 +267,7 @@ function Modal({ activeTab, item, onClose, onSave }) {
       <div className="doc-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
         <div className="doc-modal__header">
           <span className="doc-modal__title">{item ? "Editar" : "Adicionar"} Registro</span>
-          <button type="button" className="doc-modal__close" onClick={onClose}>✕</button>
+          <button type="button" className="doc-modal__close" onClick={onClose} aria-label="Fechar modal">✕</button>
         </div>
         <form className="doc-modal__body" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           

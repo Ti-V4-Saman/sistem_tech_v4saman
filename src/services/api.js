@@ -1,6 +1,7 @@
 const delay = (ms = 600) => new Promise(resolve => setTimeout(resolve, ms));
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/+$/, "");
 const AUTH_STORAGE_KEY = "techhub.auth";
+const responseCache = new Map();
 
 class ApiError extends Error {
   constructor(message, { status = 0, payload = null, isNetworkError = false } = {}) {
@@ -21,6 +22,7 @@ function getStoredSession() {
 }
 
 function setStoredSession(session) {
+  responseCache.clear();
   if (!session) localStorage.removeItem(AUTH_STORAGE_KEY);
   else localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
 }
@@ -75,6 +77,35 @@ async function parseJsonOrThrow(response) {
 async function request(path, options = {}) {
   const response = await apiFetch(path, options);
   return parseJsonOrThrow(response);
+}
+
+async function cachedRequest(path, ttlMs = 15_000) {
+  const userId = getStoredSession()?.user?.id || "anonymous";
+  const key = `${userId}:${path}`;
+  const now = Date.now();
+  const cached = responseCache.get(key);
+
+  if (cached?.value !== undefined && cached.expiresAt > now) return cached.value;
+  if (cached?.promise) return cached.promise;
+
+  const promise = request(path)
+    .then((value) => {
+      responseCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+      return value;
+    })
+    .catch((error) => {
+      responseCache.delete(key);
+      throw error;
+    });
+
+  responseCache.set(key, { promise, expiresAt: now + ttlMs });
+  return promise;
+}
+
+function invalidateCachedRequests(...pathPrefixes) {
+  for (const key of responseCache.keys()) {
+    if (pathPrefixes.some((prefix) => key.includes(`:${prefix}`))) responseCache.delete(key);
+  }
 }
 
 
@@ -309,6 +340,14 @@ export const api = {
     return session;
   },
 
+  loginForDevelopment: async () => {
+    const session = await request("/auth/development", {
+      method: "POST",
+    });
+    setStoredSession(session);
+    return session;
+  },
+
   loginWithPassword: async ({ email, password }) => {
     const session = await request("/auth/login", {
       method: "POST",
@@ -338,7 +377,7 @@ export const api = {
   },
 
   getDashboardData: async () => {
-    const realData = await request("/dashboard/overview");
+    const realData = await cachedRequest("/dashboard/overview", 10_000);
     const metrics = realData.metrics || {};
     const activeClients = Number(metrics.active_clients || 0);
     const onboardingClients = Number(metrics.onboarding_clients || 0);
@@ -416,7 +455,7 @@ export const api = {
   },
 
   getDashboardAlerts: async () => {
-    const res = await request("/dashboard/alerts");
+    const res = await cachedRequest("/dashboard/alerts", 10_000);
     return (res.data || []).map(a => ({
       type: a.type,
       client: a.client || "Cliente Desconhecido",
@@ -443,12 +482,14 @@ export const api = {
 
   getClients: async ({ limit = 100, offset = 0 } = {}) => {
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-      const data = await request(`/clients?${params.toString()}`);
+      const data = await cachedRequest(`/clients?${params.toString()}`, 20_000);
       return (data.data || []).map(mapClient);
   },
 
   createClient: async (client) => {
-    return mapClient(await request("/clients", { method: "POST", body: JSON.stringify(client) }));
+    const createdClient = mapClient(await request("/clients", { method: "POST", body: JSON.stringify(client) }));
+    invalidateCachedRequests("/clients", "/dashboard");
+    return createdClient;
   },
 
   getClientDetails: async (clientId) => {
@@ -457,7 +498,9 @@ export const api = {
   },
 
   syncAutomations: async () => {
-    return request("/automations/sync", { method: "POST" });
+    const result = await request("/automations/sync", { method: "POST" });
+    invalidateCachedRequests("/clients", "/dashboard");
+    return result;
   },
 
   updateBotStatus: async (botId, status) => {
@@ -562,6 +605,7 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(client),
       });
+      invalidateCachedRequests("/clients", "/dashboard");
       return mapClient(nextClient);
   },
 

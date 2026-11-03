@@ -112,7 +112,7 @@ export default function PageSettings({ session }) {
 
         {showModal && (
           <div className="doc-overlay" onClick={() => setShowModal(false)}><div className="doc-modal" onClick={e => e.stopPropagation()}>
-            <div className="doc-modal__header"><span className="doc-modal__title">{editingItem ? "Editar Item" : "Novo Item"}</span><button className="doc-modal__close" onClick={() => setShowModal(false)}>✕</button></div>
+            <div className="doc-modal__header"><span className="doc-modal__title">{editingItem ? "Editar Item" : "Novo Item"}</span><button type="button" className="doc-modal__close" onClick={() => setShowModal(false)} aria-label="Fechar modal">✕</button></div>
             <div className="doc-modal__body">
               <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
                 <div><label className="editor-sidebar__label">Nome *</label><input className="editor-sidebar__input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Ex: Atlas" /></div>
@@ -125,7 +125,7 @@ export default function PageSettings({ session }) {
 
         {viewingUsersItem && (
           <div className="doc-overlay" onClick={() => setViewingUsersItem(null)}><div className="doc-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-            <div className="doc-modal__header"><span className="doc-modal__title">Usuários Alocados: {viewingUsersItem.name}</span><button className="doc-modal__close" onClick={() => setViewingUsersItem(null)}>✕</button></div>
+            <div className="doc-modal__header"><span className="doc-modal__title">Usuários Alocados: {viewingUsersItem.name}</span><button type="button" className="doc-modal__close" onClick={() => setViewingUsersItem(null)} aria-label="Fechar modal">✕</button></div>
             <div className="doc-modal__body">
               <div style={{ maxHeight: 350, overflowY: "auto", marginTop: 16, display: "grid", gap: 10 }}>
                 {getUsersForItem(viewingUsersItem.slug).length === 0 ? (<div style={{ textAlign: "center", padding: 20, color: "var(--text-muted)", fontSize: 13 }}>Nenhum usuário alocado a este item.</div>) : (

@@ -1,9 +1,32 @@
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import html2pdf from "html2pdf.js";
 
-// Configura o worker do pdf.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+// Empacota o worker com a aplicação para a importação funcionar sem depender de CDN.
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
+  })[character]);
+}
+
+function sanitizeImportedHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  template.content.querySelectorAll("script, style, iframe, object, embed, form").forEach(node => node.remove());
+  template.content.querySelectorAll("*").forEach(node => {
+    [...node.attributes].forEach(attribute => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.trim().toLowerCase();
+      if (name.startsWith("on") || ((name === "href" || name === "src") && value.startsWith("javascript:"))) {
+        node.removeAttribute(attribute.name);
+      }
+    });
+  });
+  return template.innerHTML;
+}
 
 /**
  * Extrai texto de um arquivo PDF.
@@ -58,7 +81,7 @@ export async function extractTextFromPDF(file) {
             });
             
             if (lineText.trim()) {
-              text += `<p style="margin: 2px 0;">${lineText.trim()}</p>`;
+              text += `<p style="margin: 2px 0;">${escapeHtml(lineText.trim())}</p>`;
             }
           });
           
@@ -88,7 +111,7 @@ export async function extractHtmlFromDOCX(file) {
       try {
         const arrayBuffer = e.target.result;
         const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
-        resolve(result.value); // O HTML gerado
+        resolve(sanitizeImportedHtml(result.value));
       } catch (error) {
         console.error("Erro ao ler DOCX:", error);
         reject(error);

@@ -38,6 +38,12 @@ async function listUsers(organizationId) {
             jr.name AS job_role_name,
             t.slug AS team_slug,
             t.name AS team_name,
+            s.slug AS seniority_slug,
+            s.name AS seniority_name,
+            a.slug AS area_slug,
+            a.name AS area_name,
+            bu.slug AS business_unit_slug,
+            bu.name AS business_unit_name,
             up.avatar_url,
             up.bio,
             up.phone
@@ -45,6 +51,9 @@ async function listUsers(organizationId) {
        LEFT JOIN user_profiles up ON up.user_id = u.id
        LEFT JOIN job_roles jr ON jr.id = up.job_role_id
        LEFT JOIN teams t ON t.id = up.team_id
+       LEFT JOIN seniorities s ON s.id = up.seniority_id
+       LEFT JOIN areas a ON a.id = up.area_id
+       LEFT JOIN business_units bu ON bu.id = up.business_unit_id
        LEFT JOIN user_roles ur ON ur.user_id = u.id
        LEFT JOIN roles ar ON ar.id = ur.role_id
       WHERE u.organization_id = ?

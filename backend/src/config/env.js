@@ -3,12 +3,21 @@ import dotenv from 'dotenv';
 dotenv.config({ quiet: true });
 
 const requiredInProduction = ['JWT_SECRET', 'ENCRYPTION_KEY'];
+const testAuthBypassRequested = process.env.TEST_AUTH_BYPASS === 'true';
 
 if (process.env.APP_ENV === 'production') {
   const missing = requiredInProduction.filter((key) => !process.env[key]);
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
+
+  if (testAuthBypassRequested) {
+    throw new Error('TEST_AUTH_BYPASS cannot be enabled in production.');
+  }
+}
+
+if (testAuthBypassRequested && !process.env.TEST_AUTH_BYPASS_USER_EMAIL) {
+  throw new Error('TEST_AUTH_BYPASS_USER_EMAIL is required when TEST_AUTH_BYPASS is enabled.');
 }
 
 export const env = {
@@ -25,6 +34,8 @@ export const env = {
   jwtSecret: process.env.JWT_SECRET || 'dev-only-change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
   refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '30d',
+  testAuthBypass: testAuthBypassRequested,
+  testAuthBypassUserEmail: process.env.TEST_AUTH_BYPASS_USER_EMAIL || '',
   corsOrigin: (process.env.CORS_ORIGIN || 'http://localhost:5173')
     .split(',')
     .map((origin) => origin.trim())

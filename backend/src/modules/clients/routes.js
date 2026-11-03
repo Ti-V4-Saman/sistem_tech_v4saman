@@ -63,7 +63,8 @@ clientRoutes.get('/', requirePermission('clients.view'), asyncHandler(async (req
   const limit = Math.min(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 50, 1000);
   const offset = Math.max(Number.isFinite(requestedOffset) ? requestedOffset : 0, 0);
 
-  const params = [req.user.organization_id];
+  const orgId = req.user.organization_id;
+  const params = [orgId];
   let where = 'WHERE c.organization_id = ?';
   if (search) {
     where += ' AND (c.name LIKE ? OR c.legal_name LIKE ? OR c.cnpj LIKE ?)';
@@ -87,8 +88,8 @@ clientRoutes.get('/', requirePermission('clients.view'), asyncHandler(async (req
             c.cnpj,
             CASE 
               WHEN c.status = 'active' AND 
-                   (COUNT(DISTINCT CASE WHEN a.status = 'active' OR a.is_active = 1 THEN a.id END) = 0) AND 
-                   (COUNT(DISTINCT CASE WHEN b.status = 'active' OR b.is_published = 1 THEN b.id END) = 0) 
+                   COALESCE(a.active_automations, 0) = 0 AND
+                   COALESCE(b.published_bots, 0) = 0
               THEN 'inactive'
               ELSE c.status 
             END AS status,
@@ -101,35 +102,38 @@ clientRoutes.get('/', requirePermission('clients.view'), asyncHandler(async (req
             c.last_review_at,
             c.created_at,
             c.updated_at,
-            COUNT(DISTINCT a.id) AS total_automations,
-            COUNT(DISTINCT CASE WHEN a.status = 'active' OR a.is_active = 1 THEN a.id END) AS active_automations,
-            COUNT(DISTINCT b.id) AS total_bots,
-            COUNT(DISTINCT CASE WHEN b.status = 'active' OR b.is_published = 1 THEN b.id END) AS published_bots,
-            COUNT(DISTINCT CASE WHEN LOWER(b.name) LIKE '%quiz%' THEN b.id END) AS quiz_bots_count,
-            COUNT(DISTINCT CASE WHEN LOWER(b.name) LIKE '%lp%' OR LOWER(b.name) LIKE '%landing%' THEN b.id END) AS lp_bots_count,
-            COALESCE(rs.total_runs, 0) AS total_runs,
-            COALESCE(rs.success_runs, 0) AS success_runs,
-            COALESCE(rs.error_runs, 0) AS error_runs,
-            CASE WHEN COALESCE(rs.success_runs + rs.error_runs, 0) = 0 THEN NULL ELSE ROUND((rs.success_runs / (rs.success_runs + rs.error_runs)) * 100, 2) END AS success_rate,
-            CASE WHEN COALESCE(rs.success_runs + rs.error_runs, 0) = 0 THEN NULL ELSE ROUND((rs.error_runs / (rs.success_runs + rs.error_runs)) * 100, 2) END AS failure_rate,
+            COALESCE(a.total_automations, 0) AS total_automations,
+            COALESCE(a.active_automations, 0) AS active_automations,
+            COALESCE(b.total_bots, 0) AS total_bots,
+            COALESCE(b.published_bots, 0) AS published_bots,
+            COALESCE(b.quiz_bots_count, 0) AS quiz_bots_count,
+            COALESCE(b.lp_bots_count, 0) AS lp_bots_count,
             c.notes
        FROM clients c
-       LEFT JOIN automations a ON a.client_id = c.id
-       LEFT JOIN bots b ON b.client_id = c.id
        LEFT JOIN (
           SELECT a.client_id,
-                 COUNT(*) AS total_runs,
-                 SUM(CASE WHEN ar.status IN ('success', 'succeeded', 'ok', 'finished') THEN 1 ELSE 0 END) AS success_runs,
-                 SUM(CASE WHEN ar.status IN ('error', 'failed', 'failure', 'crashed') THEN 1 ELSE 0 END) AS error_runs
+                 COUNT(*) AS total_automations,
+                 SUM(CASE WHEN a.status = 'active' OR a.is_active = 1 THEN 1 ELSE 0 END) AS active_automations
             FROM automations a
-            JOIN automation_runs ar ON ar.automation_id = a.id
+            JOIN clients ac ON ac.id = a.client_id
+           WHERE ac.organization_id = ?
            GROUP BY a.client_id
-       ) rs ON rs.client_id = c.id
+       ) a ON a.client_id = c.id
+       LEFT JOIN (
+          SELECT b.client_id,
+                 COUNT(*) AS total_bots,
+                 SUM(CASE WHEN b.status = 'active' OR b.is_published = 1 THEN 1 ELSE 0 END) AS published_bots,
+                 SUM(CASE WHEN LOWER(b.name) LIKE '%quiz%' THEN 1 ELSE 0 END) AS quiz_bots_count,
+                 SUM(CASE WHEN LOWER(b.name) LIKE '%lp%' OR LOWER(b.name) LIKE '%landing%' THEN 1 ELSE 0 END) AS lp_bots_count
+            FROM bots b
+            JOIN clients bc ON bc.id = b.client_id
+           WHERE bc.organization_id = ?
+           GROUP BY b.client_id
+       ) b ON b.client_id = c.id
       ${where}
-      GROUP BY c.id, c.name, c.legal_name, c.cnpj, c.status, c.fee_amount, c.unit, c.quiz, c.lps, c.health_score, c.started_at, c.last_review_at, c.created_at, c.updated_at, c.notes, rs.total_runs, rs.success_runs, rs.error_runs
       ORDER BY c.name ASC
       LIMIT ${limit} OFFSET ${offset}`,
-    params
+    [orgId, orgId, ...params]
   );
   
   // Strip out notes in payload but compute accesses
@@ -186,11 +190,13 @@ clientRoutes.get('/:id', requirePermission('clients.view'), asyncHandler(async (
     }
   }
 
-  const tools = await query(`SELECT * FROM client_tools WHERE client_id = ? ORDER BY created_at DESC`, [req.params.id]);
-  const automations = await query(`SELECT * FROM automations WHERE client_id = ? ORDER BY updated_at DESC`, [req.params.id]);
-  const bots = await query(`SELECT * FROM bots WHERE client_id = ? ORDER BY updated_at DESC`, [req.params.id]);
-  const instances = await query(`SELECT * FROM whatsapp_instances WHERE client_id = ? ORDER BY updated_at DESC`, [req.params.id]);
-  const docs = await query(`SELECT * FROM documents WHERE client_id = ? ORDER BY updated_at DESC`, [req.params.id]);
+  const [tools, automations, bots, instances, docs] = await Promise.all([
+    query(`SELECT * FROM client_tools WHERE client_id = ? ORDER BY created_at DESC`, [req.params.id]),
+    query(`SELECT * FROM automations WHERE client_id = ? ORDER BY updated_at DESC`, [req.params.id]),
+    query(`SELECT * FROM bots WHERE client_id = ? ORDER BY updated_at DESC`, [req.params.id]),
+    query(`SELECT * FROM whatsapp_instances WHERE client_id = ? ORDER BY updated_at DESC`, [req.params.id]),
+    query(`SELECT id, title, slug, category, status, updated_at FROM documents WHERE client_id = ? ORDER BY updated_at DESC`, [req.params.id]),
+  ]);
 
   ok(res, {
     ...rows[0],
