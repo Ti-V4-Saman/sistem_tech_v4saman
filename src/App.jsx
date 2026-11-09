@@ -28,7 +28,7 @@ import { BrandMark } from "./components/app/BrandMark";
 const NAV = [
   { id: "home", path: "/", label: "Início", section: "Visão geral", icon: <Icons.Dashboard /> },
   { id: "dashboard", path: "/dashboard", label: "Operação", section: "Visão geral", icon: <Icons.ChartBar /> },
-  { id: "briu", path: "/dashboard-briu", label: "Dashboard BRIU", section: "Operação", icon: <Icons.ChartBar /> },
+  { id: "briu", path: "/dashboard-briu", label: "Dashboard BRIU", section: "Operação", icon: <Icons.ChartBar />, isAdminOnly: true },
   { id: "clients", path: "/clientes", label: "Clientes", section: "Workspace", icon: <Icons.Users /> },
   { id: "docs", path: "/documentos", label: "Documentos", section: "Workspace", icon: <Icons.Doc /> },
   { id: "telephony", path: "/telefonia", label: "Telefonia", section: "Operação", icon: <Icons.Phone />, isAdminOnly: true },
@@ -408,7 +408,7 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<PageHome session={session} setPage={navigateTo} />} />
                   <Route path="/dashboard" element={<PageDashboard setPage={navigateTo} isAdmin={isAdmin} />} />
-                  <Route path="/dashboard-briu" element={<PageBriuDashboard />} />
+                  <Route path="/dashboard-briu" element={isSuperAdmin || isAdmin ? <PageBriuDashboard /> : <div style={{ color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>Acesso negado.</div>} />
                   <Route path="/clientes" element={<PageClients session={session} />} />
                   <Route path="/documentos" element={<PageDocuments session={session} />} />
                   <Route path="/sobre-nos" element={<PageAboutUs session={session} setPage={navigateTo} />} />

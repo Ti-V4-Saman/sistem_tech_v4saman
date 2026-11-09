@@ -139,8 +139,19 @@ export default function PageBriuDashboard() {
       return { start: localIso(mon), end: localIso(sun) };
     }
 
-    async function fetchJSON(url, opts) {
-      const res = await fetch(url, opts);
+    function getAuthHeaders() {
+      try {
+        const session = JSON.parse(localStorage.getItem('techhub.auth') || 'null');
+        if (session?.accessToken) {
+          return { Authorization: `Bearer ${session.accessToken}` };
+        }
+      } catch {}
+      return {};
+    }
+
+    async function fetchJSON(url, opts = {}) {
+      const headers = { ...getAuthHeaders(), ...(opts.headers || {}) };
+      const res = await fetch(url, { ...opts, headers });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Erro HTTP ${res.status}`);
@@ -1494,9 +1505,28 @@ export default function PageBriuDashboard() {
       }
     }
 
-    function exportCsv() {
+    async function exportCsv() {
       const qs = buildQueryString({ pageSize: 10000, page: 1 });
-      window.open(`${API_BASE}/tickets/export?${qs}`, '_blank');
+      try {
+        const res = await fetch(`${API_BASE}/tickets/export?${qs}`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Erro HTTP ${res.status}`);
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ekyte_tickets_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        showToast(`Erro ao exportar CSV: ${err.message}`);
+      }
     }
 
     async function loadDashboardData() {
