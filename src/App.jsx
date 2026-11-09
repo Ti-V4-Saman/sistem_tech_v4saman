@@ -9,6 +9,7 @@ import { getInitials, formatShortName } from "./utils/formatters";
 // Pages
 const PageHome = lazy(() => import("./pages/Home/PageHome"));
 const PageDashboard = lazy(() => import("./pages/Dashboard/PageDashboard"));
+const PageBriuDashboard = lazy(() => import("./pages/Dashboards/PageBriuDashboard"));
 const PageClients = lazy(() => import("./pages/Clients/PageClients"));
 const PageDocuments = lazy(() => import("./pages/Documents/PageDocuments"));
 const PageUsers = lazy(() => import("./pages/Users/PageUsers"));
@@ -27,6 +28,7 @@ import { BrandMark } from "./components/app/BrandMark";
 const NAV = [
   { id: "home", path: "/", label: "Início", section: "Visão geral", icon: <Icons.Dashboard /> },
   { id: "dashboard", path: "/dashboard", label: "Operação", section: "Visão geral", icon: <Icons.ChartBar /> },
+  { id: "briu", path: "/dashboard-briu", label: "Dashboard BRIU", section: "Operação", icon: <Icons.ChartBar /> },
   { id: "clients", path: "/clientes", label: "Clientes", section: "Workspace", icon: <Icons.Users /> },
   { id: "docs", path: "/documentos", label: "Documentos", section: "Workspace", icon: <Icons.Doc /> },
   { id: "telephony", path: "/telefonia", label: "Telefonia", section: "Operação", icon: <Icons.Phone />, isAdminOnly: true },
@@ -406,6 +408,7 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<PageHome session={session} setPage={navigateTo} />} />
                   <Route path="/dashboard" element={<PageDashboard setPage={navigateTo} isAdmin={isAdmin} />} />
+                  <Route path="/dashboard-briu" element={<PageBriuDashboard />} />
                   <Route path="/clientes" element={<PageClients session={session} />} />
                   <Route path="/documentos" element={<PageDocuments session={session} />} />
                   <Route path="/sobre-nos" element={<PageAboutUs session={session} setPage={navigateTo} />} />

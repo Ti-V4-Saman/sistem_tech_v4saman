@@ -21,6 +21,7 @@ import { flowTemplateRoutes } from '../modules/flow-templates/routes.js';
 import { alertRoutes } from '../modules/alerts/routes.js';
 import { gtAutomationRoutes } from '../modules/gt-automation/routes.js';
 import { controlAreaRoutes } from '../modules/control-area/routes.js';
+import { ekyteBiRoutes } from '../modules/ekyte-bi/routes.js';
 
 export function createApp() {
   const app = express();
@@ -53,6 +54,7 @@ export function createApp() {
   app.use('/api/alerts', alertRoutes);
   app.use('/api/admin/gt-automation', gtAutomationRoutes);
   app.use('/api/control-area', controlAreaRoutes);
+  app.use(ekyteBiRoutes);
 
   app.use(notFound);
   app.use(errorHandler);

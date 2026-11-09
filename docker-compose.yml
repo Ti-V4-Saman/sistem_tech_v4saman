@@ -72,6 +72,14 @@ services:
       TYPEBOT_DB_NAME: ${TYPEBOT_DB_NAME}
       TYPEBOT_VIEWER_BASE_URL: ${TYPEBOT_VIEWER_BASE_URL}
       TYPEBOT_EDITOR_BASE_URL: ${TYPEBOT_EDITOR_BASE_URL}
+      EKYTE_DB_HOST: ${EKYTE_DB_HOST}
+      EKYTE_DB_PORT: ${EKYTE_DB_PORT:-3306}
+      EKYTE_DB_USER: ${EKYTE_DB_USER:-root}
+      EKYTE_DB_PASS: ${EKYTE_DB_PASS}
+      EKYTE_DB_NAME: ${EKYTE_DB_NAME:-ekyte_bi}
+      EKYTE_API_KEY: ${EKYTE_API_KEY}
+      EKYTE_BASE_URL: ${EKYTE_BASE_URL:-https://api.ekyte.com}
+      SYNC_CRON: ${SYNC_CRON:-0 * * * *}
     networks:
       - techops_network
 

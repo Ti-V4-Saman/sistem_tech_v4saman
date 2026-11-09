@@ -5,6 +5,7 @@ import { Icons } from "../../icons/Icons";
 const BASE_COMMANDS = [
   { id: "page-home", label: "Ir para Início", description: "Página inicial e atalhos", page: "home", icon: "🏠" },
   { id: "page-dashboard", label: "Ir para Visão Geral", description: "Dashboard executivo", page: "dashboard", icon: "📊" },
+  { id: "page-briu", label: "Ir para Dashboard BRIU", description: "BI Operacional eKyte - TI", page: "briu", icon: "📈" },
   { id: "page-clients", label: "Ir para Clientes", description: "Base de clientes e integrações", page: "clients", icon: "👥" },
   { id: "page-docs", label: "Ir para Documentos", description: "Base de conhecimento", page: "docs", icon: "📖" },
   { id: "page-telephony", label: "Ir para Telefonia", description: "Linhas, responsáveis e custos", page: "telephony", icon: "☎️", adminOnly: true },
