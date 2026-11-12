@@ -570,6 +570,29 @@ export const api = {
       return data.data || [];
   },
 
+  getDocumentFolders: async () => {
+    const data = await request("/docs/folders");
+    return data.data || [];
+  },
+
+  createDocumentFolder: async (folder) => {
+    return await request("/docs/folders", { method: "POST", body: JSON.stringify(folder) });
+  },
+
+  updateDocumentFolder: async (id, changes) => {
+    return await request(`/docs/folders/${id}`, { method: "PATCH", body: JSON.stringify(changes) });
+  },
+
+  deleteDocumentFolder: async (id) => {
+    await request(`/docs/folders/${id}`, { method: "DELETE" });
+    return true;
+  },
+
+  getDocumentVersions: async (id) => {
+    const data = await request(`/docs/${id}/versions`);
+    return data.data || [];
+  },
+
   getUsers: async () => {
     const data = await request("/users");
       return (data.data || []).map(mapUser);

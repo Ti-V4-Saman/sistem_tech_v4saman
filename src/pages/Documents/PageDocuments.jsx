@@ -6,19 +6,38 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { formatDocDate, stripHtml } from "../../utils/formatters";
 import { extractTextFromPDF, extractHtmlFromDOCX, exportToDOCX, exportToPDF } from "../../utils/documentParsers";
 
+const DOCUMENT_EMOJIS = ["📄", "📘", "📕", "📁", "🧭", "🛠️", "💡", "🎯", "🚀", "📊", "✅", "🔐"];
+
 // ── DOCUMENT EDITOR ──
-function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag, isAdmin, session }) {
+function DocumentEditor({ doc, tags = [], folders = [], documents = [], initialEditing = false, onSave, onBack, onDelete, onCreateTag, onOpenDocument, isAdmin, session }) {
   const editorRef = useRef(null);
   const [title, setTitle] = useState((doc && doc.title) || "");
   const [docTags, setDocTags] = useState((doc && Array.isArray(doc.tags)) ? doc.tags : []);
   const [status, setStatus] = useState((doc && doc.status) || "draft");
-  const [category, setCategory] = useState((doc && doc.category) || "");
+  const [folderId, setFolderId] = useState((doc && doc.folderId) || "");
+  const [icon, setIcon] = useState((doc && doc.icon) || "📄");
+  const [relatedDocumentIds, setRelatedDocumentIds] = useState((doc && Array.isArray(doc.relatedDocumentIds)) ? doc.relatedDocumentIds : []);
   const [newTagInput, setNewTagInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(initialEditing);
+  const [versions, setVersions] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   const isAuthor = !doc || !doc.id || doc.authorUserId === session?.user?.id;
-  const canEdit = isAdmin || isAuthor;
+  const canEditPermission = isAdmin || isAuthor;
+  const canEdit = canEditPermission && isEditing;
+
+  const loadVersions = useCallback(() => {
+    if (!doc?.id) return Promise.resolve();
+    setHistoryLoading(true);
+    return api.getDocumentVersions(doc.id)
+      .then(data => setVersions(Array.isArray(data) ? data : []))
+      .catch(() => setVersions([]))
+      .finally(() => setHistoryLoading(false));
+  }, [doc?.id]);
+
+  useEffect(() => { loadVersions(); }, [loadVersions]);
 
   useEffect(() => {
     if (editorRef.current && doc && doc.content) {
@@ -413,13 +432,27 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
     try {
       setSaving(true);
       const content = editorRef.current?.innerHTML || "";
-      await onSave({ title, content, tags: docTags, status, category });
+      await onSave({ title, content, tags: docTags, status, folderId: folderId || null, icon: icon || "📄", relatedDocumentIds });
+      setIsEditing(false);
+      await loadVersions();
     } catch (e) {
       console.error("Erro ao salvar documento:", e);
       alert("Houve um erro ao salvar. Tente novamente.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCancelEdit = () => {
+    setTitle(doc?.title || "");
+    setDocTags(Array.isArray(doc?.tags) ? doc.tags : []);
+    setStatus(doc?.status || "draft");
+    setFolderId(doc?.folderId || "");
+    setIcon(doc?.icon || "📄");
+    setRelatedDocumentIds(Array.isArray(doc?.relatedDocumentIds) ? doc.relatedDocumentIds : []);
+    if (editorRef.current) editorRef.current.innerHTML = doc?.content || "";
+    setSelectedMedia(null);
+    setIsEditing(false);
   };
 
   const handleDelete = async () => {
@@ -536,6 +569,12 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
     return tag ? tag.color : "#737373";
   };
 
+  const relatedDocuments = relatedDocumentIds
+    .map(id => documents.find(item => String(item.id) === String(id)))
+    .filter(Boolean);
+
+  const selectedFolder = folders.find(folder => String(folder.id) === String(folderId));
+
 
           return (
             <div className="doc-editor-layout" style={{ animation: "fadeIn 0.3s ease" }}>
@@ -545,6 +584,8 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
                     <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <div className="doc-toolbar__sep" />
+                  {canEdit && (
+                    <>
                   <select className="doc-toolbar__select" onChange={e => { execCmd("formatBlock", e.target.value); }} defaultValue="" disabled={!canEdit}>
                     <option value="" disabled>Formato</option><option value="p">Parágrafo</option><option value="h1">Título 1</option><option value="h2">Título 2</option><option value="h3">Título 3</option><option value="blockquote">Citação</option>
                   </select>
@@ -621,8 +662,13 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
                   <div className="doc-toolbar__sep" />
                   <button className="doc-toolbar__btn" onClick={() => execCmd("undo")} title="Desfazer" disabled={!canEdit}><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4m-4 4l4 4" /></svg></button>
                   <button className="doc-toolbar__btn" onClick={() => execCmd("redo")} title="Refazer" disabled={!canEdit}><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10H11a5 5 0 00-5 5v2m15-7l-4-4m4 4l-4 4" /></svg></button>
+                    </>
+                  )}
                   <div style={{ flex: 1 }} />
-                  {canEdit && doc && doc.id && (
+                  {!canEdit && (
+                    <div className="doc-view-mode"><span>{icon}</span><span>Modo leitura</span></div>
+                  )}
+                  {isAdmin && canEdit && doc && doc.id && (
                     <button className="btn btn--ghost" onClick={handleDelete} disabled={deleting} style={{ color: "var(--danger)", marginRight: 8, padding: "6px 12px", fontSize: 13 }}>
                       {deleting ? "Excluindo..." : "Excluir Documento"}
                     </button>
@@ -638,23 +684,51 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
                     </>
                   )}
                   {canEdit && (
-                    <button className="btn btn--primary" onClick={handleSave} disabled={saving} style={{ padding: "6px 20px", fontSize: 13 }}>
-                      {saving ? "Salvando..." : "💾 Salvar"}
-                    </button>
+                    <>
+                      <button className="btn btn--ghost" onClick={handleCancelEdit} disabled={saving} style={{ padding: "6px 12px", fontSize: 13 }}>Cancelar</button>
+                      <button className="btn btn--primary" onClick={handleSave} disabled={saving} style={{ padding: "6px 20px", fontSize: 13 }}>
+                        {saving ? "Salvando..." : "Salvar alterações"}
+                      </button>
+                    </>
                   )}
                 </div>
 
         <div style={{ flex: 1, overflowY: "auto", background: "var(--neutral-bg-subtle-02)", padding: "40px 0" }}>
           <div ref={cardRef} style={{ maxWidth: 850, margin: "0 auto", background: "var(--bg-card)", boxShadow: "var(--sh-lg)", minHeight: 1000, borderRadius: 4, display: "flex", flexDirection: "column", position: "relative" }}>
             <div style={{ padding: "60px 60px 16px" }}>
-              <input 
-                className="doc-editor-title" 
-                value={title} 
-                onChange={e => setTitle(e.target.value)} 
-                placeholder="Título do documento..." 
-                readOnly={!canEdit}
-                style={{ padding: "0 0 16px 0", background: "transparent", color: "var(--text-primary)" }} 
-              />
+              <div className="doc-document-heading">
+                {canEdit ? (
+                  <input
+                    className="doc-icon-input"
+                    value={icon}
+                    onChange={e => setIcon(e.target.value)}
+                    maxLength={32}
+                    aria-label="Emoji do documento"
+                    title="Emoji do documento"
+                  />
+                ) : (
+                  <div className="doc-viewer-icon" aria-hidden="true">{icon}</div>
+                )}
+                <div className="doc-document-heading__content">
+                  {canEdit ? (
+                    <input
+                      className="doc-editor-title"
+                      value={title}
+                      onChange={e => setTitle(e.target.value)}
+                      placeholder="Título do documento..."
+                      style={{ padding: "0 0 8px", background: "transparent", color: "var(--text-primary)" }}
+                    />
+                  ) : (
+                    <h1 className="doc-viewer-title">{title}</h1>
+                  )}
+                  <div className="doc-viewer-meta">
+                    <span className={`doc-publication-pill doc-publication-pill--${status}`}>{status === "published" ? "Publicado" : status === "archived" ? "Arquivado" : "Rascunho"}</span>
+                    <span>{selectedFolder ? `${selectedFolder.icon} ${selectedFolder.name}` : "Sem área"}</span>
+                    <span>Por {doc?.author || "Sistema"}</span>
+                    <span>Atualizado {doc?.modifiedAt ? formatDocDate(doc.modifiedAt) : "agora"}</span>
+                  </div>
+                </div>
+              </div>
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 16 }}>
                 <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>Tags:</span>
                 {Array.isArray(docTags) && docTags.map(tag => {
@@ -674,10 +748,14 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
                         <option key={t.id || t.name} value={t.name}>{t.name}</option>
                       ))}
                     </select>
-                    <input type="text" value={newTagInput} onChange={e => setNewTagInput(e.target.value)} placeholder="Ex: Todos, Atendimento, Squad Alpha" style={{ padding: "4px 8px", height: 28, fontSize: 12, width: 220, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--bg-card)", color: "var(--text-primary)", outline: "none" }}
-                      onKeyDown={e => { if (e.key === "Enter" && newTagInput.trim()) { if (onCreateTag) onCreateTag({ name: newTagInput.trim(), color: "#6366f1" }); handleAddTag(newTagInput.trim()); } }}
-                    />
-                    <button onClick={() => { if (newTagInput.trim()) { if (onCreateTag) onCreateTag({ name: newTagInput.trim(), color: "#6366f1" }); handleAddTag(newTagInput.trim()); } }} style={{ padding: "4px 8px", height: 28, borderRadius: "var(--r-sm)", border: "none", background: "var(--bg-secondary)", color: "var(--text-primary)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>+</button>
+                    {isAdmin && (
+                      <>
+                        <input type="text" value={newTagInput} onChange={e => setNewTagInput(e.target.value)} placeholder="Criar nova tag" style={{ padding: "4px 8px", height: 28, fontSize: 12, width: 150, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", background: "var(--bg-card)", color: "var(--text-primary)", outline: "none" }}
+                          onKeyDown={e => { if (e.key === "Enter" && newTagInput.trim()) { if (onCreateTag) onCreateTag({ name: newTagInput.trim(), color: "#6366f1" }); handleAddTag(newTagInput.trim()); } }}
+                        />
+                        <button onClick={() => { if (newTagInput.trim()) { if (onCreateTag) onCreateTag({ name: newTagInput.trim(), color: "#6366f1" }); handleAddTag(newTagInput.trim()); } }} style={{ padding: "4px 8px", height: 28, borderRadius: "var(--r-sm)", border: "none", background: "var(--bg-secondary)", color: "var(--text-primary)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>+</button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -687,7 +765,28 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
                 </div>
               )}
               </div>
-            <div ref={editorRef} className="doc-editor-content" contentEditable={canEdit} suppressContentEditableWarning style={{ paddingTop: 0, paddingBottom: 60 }} />
+            <div ref={editorRef} className={`doc-editor-content ${!canEdit ? "doc-editor-content--viewer" : ""}`} contentEditable={canEdit} suppressContentEditableWarning style={{ paddingTop: 0, paddingBottom: 48 }} />
+            {!canEdit && relatedDocuments.length > 0 && (
+              <section className="doc-related-section">
+                <div className="doc-related-section__eyebrow">Continue explorando</div>
+                <h2>Documentos relacionados</h2>
+                <div className="doc-related-grid">
+                  {relatedDocuments.map(related => (
+                    <button key={related.id} type="button" className="doc-related-card" onClick={() => onOpenDocument?.(related.id)}>
+                      <span className="doc-related-card__icon">{related.icon || "📄"}</span>
+                      <span><strong>{related.title}</strong><small>{stripHtml(related.content).slice(0, 90) || "Abrir documento"}</small></span>
+                      <span aria-hidden="true">→</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+            {canEditPermission && !canEdit && (
+              <div className="doc-edit-footer">
+                <div><strong>Precisa atualizar este conteúdo?</strong><span>Abra o modo de edição para alterar texto, organização e publicação.</span></div>
+                <button type="button" className="btn btn--primary" onClick={() => setIsEditing(true)}>Editar documento</button>
+              </div>
+            )}
             {renderMediaHighlight()}
             {renderMediaToolbar()}
           </div>
@@ -695,32 +794,88 @@ function DocumentEditor({ doc, tags = [], onSave, onBack, onDelete, onCreateTag,
       </div>
 
       <div className="doc-editor-sidebar">
-        <div className="editor-sidebar__field">
-          <div className="editor-sidebar__label">Status</div>
-          <select className="editor-sidebar__select" value={status} onChange={e => setStatus(e.target.value)} disabled={!canEdit}>
-            <option value="draft">Rascunho</option><option value="published">Publicado</option><option value="archived">Arquivado</option>
-          </select>
+        <div className="doc-sidebar-section">
+          <div className="doc-sidebar-section__title">Organização</div>
+          <div className="editor-sidebar__field">
+            <div className="editor-sidebar__label">Área</div>
+            {canEdit ? (
+              <select className="editor-sidebar__select" value={folderId} onChange={e => setFolderId(e.target.value)}>
+                <option value="">Sem área</option>
+                {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.icon} {folder.name}</option>)}
+              </select>
+            ) : (
+              <div className="editor-sidebar__value">{selectedFolder ? `${selectedFolder.icon} ${selectedFolder.name}` : "Sem área"}</div>
+            )}
+          </div>
+          {canEdit && <div className="doc-emoji-presets" aria-label="Sugestões de emoji">{DOCUMENT_EMOJIS.map(emoji => <button key={emoji} type="button" className={icon === emoji ? "is-active" : ""} onClick={() => setIcon(emoji)}>{emoji}</button>)}</div>}
         </div>
-        <div className="editor-sidebar__field">
-          <div className="editor-sidebar__label">Categoria</div>
-          <input className="editor-sidebar__input" value={category} onChange={e => setCategory(e.target.value)} placeholder="Ex: Integrações" readOnly={!canEdit} />
+
+        <div className="doc-sidebar-section">
+          <div className="doc-sidebar-section__title">Publicação</div>
+          <div className="editor-sidebar__field">
+            <div className="editor-sidebar__label">Status atual</div>
+            {canEdit && isAdmin ? (
+              <select className="editor-sidebar__select" value={status} onChange={e => setStatus(e.target.value)}>
+                <option value="draft">Rascunho</option><option value="published">Publicado</option><option value="archived">Arquivado</option>
+              </select>
+            ) : (
+              <div className={`doc-publication-card doc-publication-card--${status}`}>
+                <strong>{status === "published" ? "Publicado" : status === "archived" ? "Arquivado" : "Rascunho"}</strong>
+                <span>{status === "published" ? "Disponível para as pessoas autorizadas pelas tags." : status === "archived" ? "Fora da navegação principal." : "Visível apenas para o autor e administradores."}</span>
+              </div>
+            )}
+          </div>
+          {canEdit && isAdmin && <div className="doc-sidebar-hint">Ao publicar, o documento fica disponível conforme as tags de função e squad.</div>}
         </div>
+
+        {canEdit && (
+          <div className="doc-sidebar-section">
+            <div className="doc-sidebar-section__title">Documentos relacionados</div>
+            <div className="doc-related-picker">
+              {documents.filter(item => item.id !== doc?.id).map(item => {
+                const checked = relatedDocumentIds.some(id => String(id) === String(item.id));
+                return (
+                  <label key={item.id} className={`doc-related-picker__item ${checked ? "is-selected" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => setRelatedDocumentIds(current => checked ? current.filter(id => String(id) !== String(item.id)) : [...current, item.id])}
+                    />
+                    <span>{item.icon || "📄"}</span>
+                    <span>{item.title}</span>
+                  </label>
+                );
+              })}
+              {documents.length <= 1 && <div className="doc-sidebar-hint">Crie outro documento para relacioná-lo aqui.</div>}
+            </div>
+          </div>
+        )}
+
+        <div className="doc-sidebar-section">
+          <div className="doc-sidebar-section__title">Detalhes</div>
         <div className="editor-sidebar__field">
           <div className="editor-sidebar__label">Autor</div>
-          <div className="editor-sidebar__value">{(doc && doc.author) || "Gabriel G."}</div>
+          <div className="editor-sidebar__value">{(doc && doc.author) || "Sistema"}</div>
         </div>
         <div className="editor-sidebar__field">
           <div className="editor-sidebar__label">Modificado</div>
           <div className="editor-sidebar__value">{doc && doc.modifiedAt ? formatDocDate(doc.modifiedAt) : "Agora"}</div>
         </div>
-        {canEdit && (
-          <div className="editor-sidebar__field" style={{ marginTop: "auto", borderTop: "1px solid var(--border)", paddingTop: "16px" }}>
-            <div className="editor-sidebar__label" style={{ color: "var(--color-primary)" }}>Mídia / Layout</div>
-            <div className="editor-sidebar__value" style={{ fontSize: "12px", lineHeight: "1.4", color: "var(--text-secondary)" }}>
-              Clique sobre qualquer imagem ou vídeo no documento para abrir os controles flutuantes de redimensionamento e alinhamento.
+        </div>
+
+        <div className="doc-sidebar-section doc-history">
+          <div className="doc-sidebar-section__title">Histórico de modificações</div>
+          {historyLoading ? <div className="doc-sidebar-hint">Carregando histórico...</div> : versions.length === 0 ? <div className="doc-sidebar-hint">Nenhuma versão registrada.</div> : (
+            <div className="doc-history__list">
+              {versions.slice(0, 8).map((version, index) => (
+                <div key={version.id} className="doc-history__item">
+                  <span className="doc-history__dot" />
+                  <div><strong>{index === 0 ? "Versão atual" : `Versão ${version.versionNumber}`}</strong><span>{version.createdByName} · {formatDocDate(version.createdAt)}</span></div>
+                </div>
+              ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
@@ -747,6 +902,13 @@ export default function PageDocuments({ session }) {
   const [docs, setDocs] = useState([]);
   const [tags, setTags] = useState(DEFAULT_DOCUMENT_TAGS);
   const [templates, setTemplates] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [selectedFolderId, setSelectedFolderId] = useState("all");
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [editingFolder, setEditingFolder] = useState(null);
+  const [folderName, setFolderName] = useState("");
+  const [folderIcon, setFolderIcon] = useState("📁");
+  const [savingFolder, setSavingFolder] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [tempSearch, setTempSearch] = useState("");
@@ -759,6 +921,7 @@ export default function PageDocuments({ session }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createStep, setCreateStep] = useState("choose");
   const [editingDoc, setEditingDoc] = useState(null);
+  const [editorStartsEditing, setEditorStartsEditing] = useState(false);
   const [showTagCreator, setShowTagCreator] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#6366f1");
@@ -802,6 +965,7 @@ export default function PageDocuments({ session }) {
     const handleResetPage = (event) => {
       if (event.detail === "docs") {
         setEditingDoc(null);
+        setEditorStartsEditing(false);
         setShowCreateModal(false);
         setCreateStep("choose");
         setShowTagCreator(false);
@@ -822,13 +986,14 @@ export default function PageDocuments({ session }) {
     if (!requestedId) return;
     const requestedDoc = docs.find(doc => String(doc.id) === String(requestedId));
     localStorage.removeItem("techhub.openDocId");
-    if (requestedDoc) setEditingDoc(requestedDoc);
+    if (requestedDoc) { setEditorStartsEditing(false); setEditingDoc(requestedDoc); }
   }, [docs, loading]);
 
   useEffect(() => {
     const handleGlobalOpen = event => {
       const requestedDoc = docs.find(doc => String(doc.id) === String(event.detail));
       if (requestedDoc) {
+        setEditorStartsEditing(false);
         setEditingDoc(requestedDoc);
         localStorage.removeItem("techhub.openDocId");
       }
@@ -838,8 +1003,8 @@ export default function PageDocuments({ session }) {
   }, [docs]);
 
   useEffect(() => {
-    Promise.all([api.getDocs(), api.getTags(), api.getTemplates()])
-      .then(([d, t, tp]) => { 
+    Promise.all([api.getDocs(), api.getTags(), api.getTemplates(), api.getDocumentFolders()])
+      .then(([d, t, tp, folderData]) => {
         setDocs(Array.isArray(d) ? d : []); 
         const fetchedTags = Array.isArray(t) ? t : [];
         const tagMap = new Map();
@@ -847,13 +1012,16 @@ export default function PageDocuments({ session }) {
         fetchedTags.forEach(tag => { if (tag && tag.name) tagMap.set(tag.name.toLowerCase(), tag); });
         setTags(Array.from(tagMap.values()));
         setTemplates(Array.isArray(tp) ? tp : []); 
+        setFolders(Array.isArray(folderData) ? folderData : []);
       })
-      .catch(() => { setDocs([]); setTags(DEFAULT_DOCUMENT_TAGS); setTemplates([]); })
+      .catch(() => { setDocs([]); setTags(DEFAULT_DOCUMENT_TAGS); setTemplates([]); setFolders([]); })
       .finally(() => setLoading(false));
   }, []);
 
   const filteredDocs = useMemo(() => {
     let result = [...docs];
+    if (selectedFolderId === "unfiled") result = result.filter(d => !d.folderId);
+    else if (selectedFolderId !== "all") result = result.filter(d => String(d.folderId) === String(selectedFolderId));
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(d => (d.title || "").toLowerCase().includes(q) || stripHtml(d.content).toLowerCase().includes(q) || (Array.isArray(d.tags) && d.tags.some(t => (t || "").toLowerCase().includes(q))));
@@ -864,7 +1032,7 @@ export default function PageDocuments({ session }) {
       else { const na = (a.title || "").toLowerCase(); const nb = (b.title || "").toLowerCase(); return sortDir === "asc" ? na.localeCompare(nb) : nb.localeCompare(na); }
     });
     return result;
-  }, [docs, searchQuery, selectedTags, sortBy, sortDir]);
+  }, [docs, searchQuery, selectedTags, sortBy, sortDir, selectedFolderId]);
 
   const toggleTag = (tagName) => { setSelectedTags(prev => prev.includes(tagName) ? prev.filter(t => t !== tagName) : [...prev, tagName]); };
   const toggleSort = (field) => { if (sortBy === field) { setSortDir(prev => prev === "asc" ? "desc" : "asc"); } else { setSortBy(field); setSortDir(field === "date" ? "desc" : "asc"); } };
@@ -872,8 +1040,50 @@ export default function PageDocuments({ session }) {
   const handleCreateTag = async (tag) => { try { const created = await api.createTag(tag); setTags(prev => [...prev, created]); setNewTagName(""); setShowTagCreator(false); } catch (e) { console.error(e); alert("Erro ao criar tag: " + (e.message || "Erro no servidor.")); } };
   const handleDeleteTag = async (id) => { try { await api.deleteTag(id); setTags(prev => prev.filter(t => t.id !== id)); const updatedDocs = await api.getDocs(); setDocs(updatedDocs); } catch (e) { console.error(e); alert("Erro ao excluir tag: " + (e.message || "Erro no servidor.")); } };
 
-  const handleCreateBlank = async () => { try { const newDoc = await api.createDoc({ title: "Novo Documento", content: "<h1>Novo Documento</h1><p>Comece a escrever aqui...</p>", tags: [], category: "", type: "document" }); setDocs(prev => [newDoc, ...prev]); setShowCreateModal(false); setCreateStep("choose"); setEditingDoc(newDoc); } catch (e) { console.error(e); alert("Erro ao criar documento: " + (e.message || "Erro no servidor.")); } };
-  const handleCreateFromTemplate = async (template) => { try { const newDoc = await api.createDoc({ title: template.name, content: template.content, tags: [], category: "", type: "document" }); setDocs(prev => [newDoc, ...prev]); setShowCreateModal(false); setCreateStep("choose"); setEditingDoc(newDoc); } catch (e) { console.error(e); alert("Erro ao criar documento a partir do template: " + (e.message || "Erro no servidor.")); } };
+  const openFolderModal = (folder = null) => {
+    setEditingFolder(folder);
+    setFolderName(folder?.name || "");
+    setFolderIcon(folder?.icon || "📁");
+    setShowFolderModal(true);
+  };
+
+  const handleSaveFolder = async () => {
+    if (!folderName.trim()) return;
+    try {
+      setSavingFolder(true);
+      if (editingFolder) {
+        const updated = await api.updateDocumentFolder(editingFolder.id, { name: folderName.trim(), icon: folderIcon || "📁" });
+        setFolders(current => current.map(folder => folder.id === editingFolder.id ? { ...folder, ...updated } : folder));
+      } else {
+        const created = await api.createDocumentFolder({ name: folderName.trim(), icon: folderIcon || "📁" });
+        setFolders(current => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+      setShowFolderModal(false);
+      setEditingFolder(null);
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao salvar área: " + (e.message || "Erro no servidor."));
+    } finally {
+      setSavingFolder(false);
+    }
+  };
+
+  const handleDeleteFolder = async (folder) => {
+    if (!confirm(`Excluir a área “${folder.name}”? Os documentos ficarão em “Sem área”.`)) return;
+    try {
+      await api.deleteDocumentFolder(folder.id);
+      setFolders(current => current.filter(item => item.id !== folder.id));
+      setDocs(current => current.map(item => item.folderId === folder.id ? { ...item, folderId: null } : item));
+      if (selectedFolderId === folder.id) setSelectedFolderId("all");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao excluir área: " + (e.message || "Erro no servidor."));
+    }
+  };
+
+  const targetFolderId = selectedFolderId !== "all" && selectedFolderId !== "unfiled" ? selectedFolderId : null;
+  const handleCreateBlank = async () => { try { const newDoc = await api.createDoc({ title: "Novo Documento", content: "<h1>Novo Documento</h1><p>Comece a escrever aqui...</p>", tags: [], folderId: targetFolderId, icon: "📄", type: "document" }); setDocs(prev => [newDoc, ...prev]); setShowCreateModal(false); setCreateStep("choose"); setEditorStartsEditing(true); setEditingDoc(newDoc); } catch (e) { console.error(e); alert("Erro ao criar documento: " + (e.message || "Erro no servidor.")); } };
+  const handleCreateFromTemplate = async (template) => { try { const newDoc = await api.createDoc({ title: template.name, content: template.content, tags: [], folderId: targetFolderId, icon: "📄", type: "document" }); setDocs(prev => [newDoc, ...prev]); setShowCreateModal(false); setCreateStep("choose"); setEditorStartsEditing(true); setEditingDoc(newDoc); } catch (e) { console.error(e); alert("Erro ao criar documento a partir do template: " + (e.message || "Erro no servidor.")); } };
 
   const validateDocumentFile = (file) => {
     if (!file) return "Nenhum arquivo selecionado.";
@@ -918,11 +1128,12 @@ export default function PageDocuments({ session }) {
         content = `<h1>${cleanName}</h1>${content}`;
       }
       
-      const newDoc = await api.createDoc({ title: cleanName, content: content, tags: [], category: "", type: type });
+      const newDoc = await api.createDoc({ title: cleanName, content: content, tags: [], folderId: targetFolderId, icon: isPdf ? "📕" : "📘", type: type });
       setDocs(prev => [newDoc, ...prev]); 
       setShowCreateModal(false); 
       setCreateStep("choose"); 
       setPdfFile(null);
+      setEditorStartsEditing(true);
       setEditingDoc(newDoc);
     } catch (e) { 
       console.error(e); 
@@ -938,7 +1149,7 @@ export default function PageDocuments({ session }) {
     if (file) await importDocumentFile(file);
   };
   const handleSaveDoc = async (changes) => { try { const updated = await api.updateDoc(editingDoc.id, changes); setDocs(prev => prev.map(d => d.id === editingDoc.id ? updated : d)); setEditingDoc(updated); } catch (e) { console.error(e); alert("Erro ao salvar documento: " + (e.message || "Erro no servidor.")); } };
-  const handleDeleteDoc = async (id) => { try { await api.deleteDoc(id); setDocs(prev => prev.filter(d => d.id !== id)); setEditingDoc(null); } catch (e) { console.error(e); alert("Erro ao excluir documento: " + (e.message || "Verifique se possui permissão ou se o documento existe no banco de dados.")); } };
+  const handleDeleteDoc = async (id) => { try { await api.deleteDoc(id); setDocs(prev => prev.filter(d => d.id !== id)); setEditorStartsEditing(false); setEditingDoc(null); } catch (e) { console.error(e); alert("Erro ao excluir documento: " + (e.message || "Verifique se possui permissão ou se o documento existe no banco de dados.")); } };
 
   const usedTags = useMemo(() => {
     const set = new Set();
@@ -954,10 +1165,14 @@ export default function PageDocuments({ session }) {
         key={editingDoc.id} 
         doc={editingDoc} 
         tags={tags || []} 
+        folders={folders}
+        documents={docs}
+        initialEditing={editorStartsEditing}
         onSave={handleSaveDoc} 
         onDelete={handleDeleteDoc} 
-        onBack={() => setEditingDoc(null)} 
+        onBack={() => { setEditingDoc(null); setEditorStartsEditing(false); }}
         onCreateTag={handleCreateTag} 
+        onOpenDocument={(id) => { const target = docs.find(item => String(item.id) === String(id)); if (target) { setEditorStartsEditing(false); setEditingDoc(target); } }}
         isAdmin={isAdmin}
         session={session}
       />
@@ -1010,6 +1225,32 @@ export default function PageDocuments({ session }) {
 
       {activeTab === "docs" && (
         <>
+          <section className="doc-areas-section">
+            <div className="doc-areas-section__header">
+              <div><span>Áreas</span><small>Organize a base de conhecimento por assunto</small></div>
+              {isAdmin && <button type="button" className="btn btn--outline btn--sm" onClick={() => openFolderModal()}>+ Nova área</button>}
+            </div>
+            <div className="doc-areas-strip">
+              <button type="button" className={`doc-area-card ${selectedFolderId === "all" ? "is-active" : ""}`} onClick={() => setSelectedFolderId("all")}>
+                <span className="doc-area-card__icon">🗂️</span><span><strong>Todos</strong><small>{docs.length} documento{docs.length !== 1 ? "s" : ""}</small></span>
+              </button>
+              {folders.map(folder => {
+                const count = docs.filter(item => String(item.folderId) === String(folder.id)).length;
+                return (
+                  <div key={folder.id} className={`doc-area-card doc-area-card--managed ${selectedFolderId === folder.id ? "is-active" : ""}`}>
+                    <button type="button" className="doc-area-card__main" onClick={() => setSelectedFolderId(folder.id)}>
+                      <span className="doc-area-card__icon">{folder.icon || "📁"}</span><span><strong>{folder.name}</strong><small>{count} documento{count !== 1 ? "s" : ""}</small></span>
+                    </button>
+                    {isAdmin && <div className="doc-area-card__actions"><button type="button" onClick={() => openFolderModal(folder)} title="Editar área">✎</button><button type="button" onClick={() => handleDeleteFolder(folder)} title="Excluir área">×</button></div>}
+                  </div>
+                );
+              })}
+              <button type="button" className={`doc-area-card ${selectedFolderId === "unfiled" ? "is-active" : ""}`} onClick={() => setSelectedFolderId("unfiled")}>
+                <span className="doc-area-card__icon">📄</span><span><strong>Sem área</strong><small>{docs.filter(item => !item.folderId).length} documento{docs.filter(item => !item.folderId).length !== 1 ? "s" : ""}</small></span>
+              </button>
+            </div>
+          </section>
+
           {!loading && docs.length > 0 && (
             <section className="client-summary-grid" style={{ marginBottom: "24px" }}>
               <div className="client-summary-card">
@@ -1173,14 +1414,14 @@ export default function PageDocuments({ session }) {
             ) : (
               <div className={`doc-gallery ${viewMode === "list" ? "doc-gallery--list" : ""}`}>
                 {filteredDocs.map(doc => (
-                  <div key={doc.id} className="doc-card" onClick={() => setEditingDoc(doc)}>
+                  <div key={doc.id} className="doc-card" onClick={() => { setEditorStartsEditing(false); setEditingDoc(doc); }}>
                     <div className="doc-card__header">
                       <div className={`doc-card__icon ${doc.type === "pdf" ? "doc-card__icon--pdf" : doc.type === "docx" ? "doc-card__icon--docx" : ""}`}>
-                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <span className="doc-card__emoji">{doc.icon || "📄"}</span>
                       </div>
                       <div className="doc-card__title-wrap">
                         <div className="doc-card__title">{doc.title}</div>
-                        <div className="doc-card__meta"><span>{doc.author}</span><span>·</span><span>{formatDocDate(doc.updatedAt)}</span></div>
+                        <div className="doc-card__meta"><span>{doc.author}</span><span>·</span><span>{formatDocDate(doc.updatedAt)}</span>{doc.folderId && <><span>·</span><span>{folders.find(folder => folder.id === doc.folderId)?.name}</span></>}</div>
                       </div>
                     </div>
                     <div className="doc-card__preview">{stripHtml(doc.content)}</div>
@@ -1221,19 +1462,19 @@ export default function PageDocuments({ session }) {
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <div className="doc-card__status">{statusBadge(doc.status)}</div>
                         {(isAdmin || doc.authorUserId === session?.user?.id) && (
-                          <button 
-                            className="btn btn--ghost btn--sm text-danger" 
-                            style={{ padding: "4px 8px", fontSize: "12px", border: "1px solid transparent" }}
+                          <button
+                            className="btn btn--outline btn--sm"
+                            style={{ padding: "4px 10px", fontSize: "12px" }}
                             onClick={(event) => {
                               event.stopPropagation();
-                              if (confirm(`Tem certeza que deseja excluir "${doc.title}"?`)) {
-                                handleDeleteDoc(doc.id);
-                              }
+                              setEditorStartsEditing(true);
+                              setEditingDoc(doc);
                             }}
                           >
-                            🗑️
+                            Editar
                           </button>
                         )}
+                        {isAdmin && <button className="doc-card__delete" title="Excluir documento" onClick={(event) => { event.stopPropagation(); if (confirm(`Tem certeza que deseja excluir "${doc.title}"?`)) handleDeleteDoc(doc.id); }}>×</button>}
                       </div>
                     </div>
                   </div>
@@ -1268,6 +1509,26 @@ export default function PageDocuments({ session }) {
               {tags.length === 0 && (<tr><td colSpan="4" style={{ textAlign: "center", padding: 32, color: "var(--text-muted)" }}>Nenhuma tag criada.</td></tr>)}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {showFolderModal && (
+        <div className="doc-overlay" onClick={() => setShowFolderModal(false)}>
+          <div className="doc-modal doc-folder-modal" onClick={event => event.stopPropagation()}>
+            <div className="doc-modal__header">
+              <div><span className="doc-modal__title">{editingFolder ? "Editar área" : "Nova área"}</span><p>Crie uma pasta visual para agrupar documentos relacionados.</p></div>
+              <button type="button" className="doc-modal__close" onClick={() => setShowFolderModal(false)} aria-label="Fechar">×</button>
+            </div>
+            <div className="doc-modal__body">
+              <div className="doc-folder-form">
+                <label><span>Emoji</span><input className="doc-folder-emoji-input" value={folderIcon} onChange={event => setFolderIcon(event.target.value)} maxLength={32} autoFocus /></label>
+                <label><span>Nome da área</span><input value={folderName} onChange={event => setFolderName(event.target.value)} placeholder="Ex.: Processos comerciais" onKeyDown={event => { if (event.key === "Enter") handleSaveFolder(); }} /></label>
+              </div>
+              <div className="doc-emoji-presets doc-emoji-presets--modal" aria-label="Sugestões de emoji">{DOCUMENT_EMOJIS.map(emoji => <button key={emoji} type="button" className={folderIcon === emoji ? "is-active" : ""} onClick={() => setFolderIcon(emoji)}>{emoji}</button>)}</div>
+              <div className="doc-folder-preview"><span>{folderIcon || "📁"}</span><div><strong>{folderName || "Nome da área"}</strong><small>Prévia da pasta</small></div></div>
+              <div className="doc-modal-actions"><button type="button" className="btn btn--ghost" onClick={() => setShowFolderModal(false)}>Cancelar</button><button type="button" className="btn btn--primary" disabled={!folderName.trim() || savingFolder} onClick={handleSaveFolder}>{savingFolder ? "Salvando..." : editingFolder ? "Salvar área" : "Criar área"}</button></div>
+            </div>
+          </div>
         </div>
       )}
 
