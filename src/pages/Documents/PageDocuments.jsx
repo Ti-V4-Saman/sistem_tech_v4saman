@@ -1,10 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import { api } from "../../services/api";
 import { Icons } from "../../icons/Icons";
-import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { formatDocDate, stripHtml } from "../../utils/formatters";
-import { extractTextFromPDF, extractHtmlFromDOCX, exportToDOCX, exportToPDF } from "../../utils/documentParsers";
 
 const DOCUMENT_EMOJIS = ["📄", "📘", "📕", "📁", "🧭", "🛠️", "💡", "🎯", "🚀", "📊", "✅", "🔐"];
 
@@ -675,10 +672,10 @@ function DocumentEditor({ doc, tags = [], folders = [], documents = [], initialE
                   )}
                   {doc && doc.id && (
                     <>
-                      <button className="btn btn--outline" onClick={() => exportToDOCX(editorRef.current.innerHTML, title || "Documento")} style={{ marginRight: 8, padding: "6px 12px", fontSize: 13 }}>
+                      <button className="btn btn--outline" onClick={async () => { const { exportToDOCX } = await import("../../utils/documentParsers"); exportToDOCX(editorRef.current.innerHTML, title || "Documento"); }} style={{ marginRight: 8, padding: "6px 12px", fontSize: 13 }}>
                         Exportar DOCX
                       </button>
-                      <button className="btn btn--outline" onClick={() => exportToPDF(cardRef.current, title || "Documento")} style={{ marginRight: 8, padding: "6px 12px", fontSize: 13 }}>
+                      <button className="btn btn--outline" onClick={async () => { const { exportToPDF } = await import("../../utils/documentParsers"); exportToPDF(cardRef.current, title || "Documento"); }} style={{ marginRight: 8, padding: "6px 12px", fontSize: 13 }}>
                         Exportar PDF
                       </button>
                     </>
@@ -898,6 +895,63 @@ const DEFAULT_DOCUMENT_TAGS = [
 ];
 
 // ── DOCUMENTS PAGE ──
+function DocumentListSkeleton({ viewMode }) {
+  return (
+    <div className={`documents-results documents-results--${viewMode}`} aria-label="Carregando documentos" aria-busy="true">
+      {Array.from({ length: viewMode === "grid" ? 8 : 6 }).map((_, index) => (
+        <div className="documents-skeleton" key={index}>
+          <span className="documents-skeleton__icon" />
+          <div className="documents-skeleton__body">
+            <span className="documents-skeleton__line documents-skeleton__line--title" />
+            <span className="documents-skeleton__line" />
+            <span className="documents-skeleton__line documents-skeleton__line--short" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function getDocumentPreview(content) {
+  const withoutCodeBlocks = String(content || "")
+    .replace(/<pre[\s\S]*?<\/pre>/gi, " ")
+    .replace(/<code[\s\S]*?<\/code>/gi, " ");
+  return stripHtml(withoutCodeBlocks).replace(/\s+/g, " ").trim();
+}
+
+function DocumentActionMenu({ doc, folders, canEdit, isAdmin, onOpen, onEdit, onDuplicate, onMove, onManageTags, onTogglePublish, onDelete }) {
+  const detailsRef = useRef(null);
+  const closeMenu = () => detailsRef.current?.removeAttribute("open");
+  const runAction = (action) => {
+    closeMenu();
+    action();
+  };
+
+  return (
+    <details className="documents-action-menu" ref={detailsRef} onClick={event => event.stopPropagation()}>
+      <summary aria-label={`Ações de ${doc.title}`} title="Mais ações"><span aria-hidden="true">•••</span></summary>
+      <div className="documents-action-menu__popover" role="menu">
+        <button type="button" role="menuitem" onClick={() => runAction(onOpen)}>Abrir documento</button>
+        {canEdit && <button type="button" role="menuitem" onClick={() => runAction(onEdit)}>Editar</button>}
+        {isAdmin && <button type="button" role="menuitem" onClick={() => runAction(onTogglePublish)}>{doc.status === "published" ? "Voltar para rascunho" : "Publicar"}</button>}
+        {isAdmin && <button type="button" role="menuitem" onClick={() => runAction(onDuplicate)}>Duplicar</button>}
+        {canEdit && (
+          <label className="documents-action-menu__select">
+            <span>Mover para</span>
+            <select value={doc.folderId || ""} onChange={event => { closeMenu(); onMove(event.target.value || null); }} aria-label={`Mover ${doc.title} para outra área`}>
+              <option value="">Sem área</option>
+              {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+            </select>
+          </label>
+        )}
+        {canEdit && <button type="button" role="menuitem" onClick={() => runAction(onManageTags)}>Gerenciar tags</button>}
+        {canEdit && <div className="documents-action-menu__separator" />}
+        {canEdit && <button type="button" role="menuitem" className="is-danger" onClick={() => runAction(onDelete)}>Excluir</button>}
+      </div>
+    </details>
+  );
+}
+
 export default function PageDocuments({ session }) {
   const [docs, setDocs] = useState([]);
   const [tags, setTags] = useState(DEFAULT_DOCUMENT_TAGS);
@@ -913,16 +967,15 @@ export default function PageDocuments({ session }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [tempSearch, setTempSearch] = useState("");
   const [selectedTags, setSelectedTags] = useState([]);
-  const [sortBy, setSortBy] = useState("date");
-  const [tempSortBy, setTempSortBy] = useState("date");
+  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedAuthor, setSelectedAuthor] = useState("all");
+  const [sortBy, setSortBy] = useState("updated");
   const [sortDir, setSortDir] = useState("desc");
-  const [tempSortDir, setTempSortDir] = useState("desc");
-  const [viewMode, setViewMode] = useState("grid");
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("techhub.documentsView") === "grid" ? "grid" : "list");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createStep, setCreateStep] = useState("choose");
   const [editingDoc, setEditingDoc] = useState(null);
   const [editorStartsEditing, setEditorStartsEditing] = useState(false);
-  const [showTagCreator, setShowTagCreator] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#6366f1");
   const [activeTab, setActiveTab] = useState("docs");
@@ -930,6 +983,7 @@ export default function PageDocuments({ session }) {
   const [pdfDragging, setPdfDragging] = useState(false);
   const [importingFile, setImportingFile] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [feedback, setFeedback] = useState(null);
   const fileInputRef = useRef(null);
 
   const isAdmin = session?.user?.accessRoleSlug === "admin" || session?.user?.accessRoleSlug === "super-admin";
@@ -943,23 +997,27 @@ export default function PageDocuments({ session }) {
   };
   const publishedCount = useMemo(() => docs.filter(d => d.status === "published").length, [docs]);
   const draftCount = useMemo(() => docs.filter(d => d.status === "draft").length, [docs]);
+  const archivedCount = useMemo(() => docs.filter(d => d.status === "archived").length, [docs]);
 
-  const tagData = useMemo(() => {
-    const counts = {};
-    docs.forEach(d => {
-      if (Array.isArray(d.tags)) {
-        d.tags.forEach(t => {
-          if (t) counts[t] = (counts[t] || 0) + 1;
-        });
-      }
-    });
-    const colors = ["#e92e30", "#3b82f6", "#10b981", "#f59e0b", "#6366f1", "#8b5cf6", "#ec4899"];
-    return Object.entries(counts).map(([name, value], index) => ({
-      name,
-      value,
-      color: getTagColor(name) || colors[index % colors.length]
-    })).sort((a, b) => b.value - a.value).slice(0, 5);
-  }, [docs, tags]);
+  const authors = useMemo(
+    () => [...new Set(docs.map(doc => doc.author).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [docs]
+  );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQuery(tempSearch.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [tempSearch]);
+
+  useEffect(() => {
+    localStorage.setItem("techhub.documentsView", viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (!feedback) return undefined;
+    const timer = window.setTimeout(() => setFeedback(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [feedback]);
 
   useEffect(() => {
     const handleResetPage = (event) => {
@@ -968,11 +1026,13 @@ export default function PageDocuments({ session }) {
         setEditorStartsEditing(false);
         setShowCreateModal(false);
         setCreateStep("choose");
-        setShowTagCreator(false);
         setActiveTab("docs");
         setSearchQuery("");
         setTempSearch("");
         setSelectedTags([]);
+        setSelectedStatus("all");
+        setSelectedAuthor("all");
+        setSelectedFolderId("all");
         setShowFilters(false);
       }
     };
@@ -1022,22 +1082,40 @@ export default function PageDocuments({ session }) {
     let result = [...docs];
     if (selectedFolderId === "unfiled") result = result.filter(d => !d.folderId);
     else if (selectedFolderId !== "all") result = result.filter(d => String(d.folderId) === String(selectedFolderId));
+    if (selectedStatus !== "all") result = result.filter(d => d.status === selectedStatus);
+    if (selectedAuthor !== "all") result = result.filter(d => d.author === selectedAuthor);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(d => (d.title || "").toLowerCase().includes(q) || stripHtml(d.content).toLowerCase().includes(q) || (Array.isArray(d.tags) && d.tags.some(t => (t || "").toLowerCase().includes(q))));
     }
     if (selectedTags.length > 0) { result = result.filter(d => selectedTags.every(tag => d.tags?.includes(tag))); }
     result.sort((a, b) => {
-      if (sortBy === "date") { const da = new Date(a.modifiedAt || 0).getTime(); const db = new Date(b.modifiedAt || 0).getTime(); return sortDir === "desc" ? (db || 0) - (da || 0) : (da || 0) - (db || 0); }
-      else { const na = (a.title || "").toLowerCase(); const nb = (b.title || "").toLowerCase(); return sortDir === "asc" ? na.localeCompare(nb) : nb.localeCompare(na); }
+      if (sortBy === "updated" || sortBy === "created") {
+        const field = sortBy === "created" ? "createdAt" : "updatedAt";
+        const da = new Date(a[field] || 0).getTime();
+        const db = new Date(b[field] || 0).getTime();
+        return sortDir === "desc" ? (db || 0) - (da || 0) : (da || 0) - (db || 0);
+      }
+      const na = (a.title || "").toLowerCase();
+      const nb = (b.title || "").toLowerCase();
+      return sortDir === "asc" ? na.localeCompare(nb) : nb.localeCompare(na);
     });
     return result;
-  }, [docs, searchQuery, selectedTags, sortBy, sortDir, selectedFolderId]);
+  }, [docs, searchQuery, selectedTags, selectedStatus, selectedAuthor, sortBy, sortDir, selectedFolderId]);
 
   const toggleTag = (tagName) => { setSelectedTags(prev => prev.includes(tagName) ? prev.filter(t => t !== tagName) : [...prev, tagName]); };
-  const toggleSort = (field) => { if (sortBy === field) { setSortDir(prev => prev === "asc" ? "desc" : "asc"); } else { setSortBy(field); setSortDir(field === "date" ? "desc" : "asc"); } };
+  const clearFilters = () => {
+    setTempSearch("");
+    setSearchQuery("");
+    setSelectedTags([]);
+    setSelectedStatus("all");
+    setSelectedAuthor("all");
+    setSelectedFolderId("all");
+    setSortBy("updated");
+    setSortDir("desc");
+  };
 
-  const handleCreateTag = async (tag) => { try { const created = await api.createTag(tag); setTags(prev => [...prev, created]); setNewTagName(""); setShowTagCreator(false); } catch (e) { console.error(e); alert("Erro ao criar tag: " + (e.message || "Erro no servidor.")); } };
+  const handleCreateTag = async (tag) => { try { const created = await api.createTag(tag); setTags(prev => [...prev, created]); setNewTagName(""); } catch (e) { console.error(e); alert("Erro ao criar tag: " + (e.message || "Erro no servidor.")); } };
   const handleDeleteTag = async (id) => { try { await api.deleteTag(id); setTags(prev => prev.filter(t => t.id !== id)); const updatedDocs = await api.getDocs(); setDocs(updatedDocs); } catch (e) { console.error(e); alert("Erro ao excluir tag: " + (e.message || "Erro no servidor.")); } };
 
   const openFolderModal = (folder = null) => {
@@ -1116,11 +1194,9 @@ export default function PageDocuments({ session }) {
       const cleanName = file.name.replace(/\.(pdf|docx)$/i, "");
       let content = "";
       
-      if (isPdf) {
-        content = await extractTextFromPDF(file);
-      } else {
-        content = await extractHtmlFromDOCX(file);
-      }
+      const parsers = await import("../../utils/documentParsers");
+      if (isPdf) content = await parsers.extractTextFromPDF(file);
+      else content = await parsers.extractHtmlFromDOCX(file);
       
       if (!content) {
         content = `<h1>${cleanName}</h1><p>Documento importado não continha texto reconhecível.</p>`;
@@ -1148,8 +1224,33 @@ export default function PageDocuments({ session }) {
     const file = event.target.files?.[0];
     if (file) await importDocumentFile(file);
   };
-  const handleSaveDoc = async (changes) => { try { const updated = await api.updateDoc(editingDoc.id, changes); setDocs(prev => prev.map(d => d.id === editingDoc.id ? updated : d)); setEditingDoc(updated); } catch (e) { console.error(e); alert("Erro ao salvar documento: " + (e.message || "Erro no servidor.")); } };
-  const handleDeleteDoc = async (id) => { try { await api.deleteDoc(id); setDocs(prev => prev.filter(d => d.id !== id)); setEditorStartsEditing(false); setEditingDoc(null); } catch (e) { console.error(e); alert("Erro ao excluir documento: " + (e.message || "Verifique se possui permissão ou se o documento existe no banco de dados.")); } };
+  const handleSaveDoc = async (changes) => { try { const updated = await api.updateDoc(editingDoc.id, changes); setDocs(prev => prev.map(d => d.id === editingDoc.id ? updated : d)); setEditingDoc(updated); setFeedback({ type: "success", message: "Documento salvo com sucesso." }); } catch (e) { console.error(e); alert("Erro ao salvar documento: " + (e.message || "Erro no servidor.")); } };
+  const handleDeleteDoc = async (id) => { try { await api.deleteDoc(id); setDocs(prev => prev.filter(d => d.id !== id)); setEditorStartsEditing(false); setEditingDoc(null); setFeedback({ type: "success", message: "Documento excluído com sucesso." }); } catch (e) { console.error(e); setFeedback({ type: "error", message: e.message || "Não foi possível excluir o documento." }); } };
+
+  const handleQuickUpdate = async (doc, changes, successMessage) => {
+    try {
+      const updated = await api.updateDoc(doc.id, changes);
+      setDocs(current => current.map(item => item.id === doc.id ? updated : item));
+      setFeedback({ type: "success", message: successMessage });
+    } catch (error) {
+      console.error(error);
+      setFeedback({ type: "error", message: error.message || "Não foi possível atualizar o documento." });
+    }
+  };
+
+  const handleDuplicateDoc = async (doc) => {
+    try {
+      const duplicated = await api.createDoc({
+        title: `${doc.title} — Cópia`, content: doc.content, tags: doc.tags || [],
+        folderId: doc.folderId || null, icon: doc.icon, type: doc.type || "document", status: "draft",
+      });
+      setDocs(current => [duplicated, ...current]);
+      setFeedback({ type: "success", message: "Cópia criada como rascunho." });
+    } catch (error) {
+      console.error(error);
+      setFeedback({ type: "error", message: error.message || "Não foi possível duplicar o documento." });
+    }
+  };
 
   const usedTags = useMemo(() => {
     const set = new Set();
@@ -1179,19 +1280,12 @@ export default function PageDocuments({ session }) {
     );
   }
 
-  const statusBadge = (status) => {
-    const map = { published: { label: "Publicado", cls: "badge--success" }, draft: { label: "Rascunho", cls: "badge--warning" }, archived: { label: "Arquivado", cls: "badge--default" } };
-    const c = map[status] || { label: status, cls: "badge--default" };
-    return <span className={`badge ${c.cls}`}>{c.label}</span>;
-  };
-
   return (
-    <div style={{ animation: "fadeIn 0.3s ease" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
+    <div className="documents-hub" style={{ animation: "fadeIn 0.3s ease" }}>
+      <div className="documents-page-header">
         <div>
-          <div className="page-header__greeting">Base de Conhecimento</div>
           <div className="page-header__title">Documentos</div>
-          <div className="page-header__subtitle">{loading ? "Carregando..." : `${docs.length} documento${docs.length !== 1 ? "s" : ""} cadastrado${docs.length !== 1 ? "s" : ""}`}</div>
+          <div className="page-header__subtitle">Central de conhecimento, processos e documentação técnica.</div>
         </div>
         {isAdmin && (
           <div style={{ display: "flex", gap: 8 }}>
@@ -1202,13 +1296,13 @@ export default function PageDocuments({ session }) {
               ref={fileInputRef} 
               onChange={handleImportFile} 
             />
-            <button className="btn btn--outline" onClick={() => fileInputRef.current?.click()}>
+            <button className="btn btn--outline" onClick={() => fileInputRef.current?.click()} disabled={importingFile}>
               <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ marginRight: 6 }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-              Importar DOCX/PDF
+              {importingFile ? "Importando..." : "Importar DOCX/PDF"}
             </button>
             <button className="btn btn--primary" onClick={() => { setShowCreateModal(true); setCreateStep("choose"); }}>
               <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-              Novo Documento
+              + Novo documento
             </button>
           </div>
         )}
@@ -1224,265 +1318,110 @@ export default function PageDocuments({ session }) {
       )}
 
       {activeTab === "docs" && (
-        <>
-          <section className="doc-areas-section">
-            <div className="doc-areas-section__header">
-              <div><span>Áreas</span><small>Organize a base de conhecimento por assunto</small></div>
-              {isAdmin && <button type="button" className="btn btn--outline btn--sm" onClick={() => openFolderModal()}>+ Nova área</button>}
+        <main className="documents-workspace">
+          <section className="documents-discovery" aria-label="Pesquisa e filtros de documentos">
+            <div className="documents-search-row">
+              <label className="documents-search">
+                <span className="documents-search__icon" aria-hidden="true"><Icons.Search /></span>
+                <span className="sr-only">Pesquisar documentos</span>
+                <input
+                  value={tempSearch}
+                  onChange={event => setTempSearch(event.target.value)}
+                  placeholder="Pesquisar documentos por título, conteúdo ou tag..."
+                  autoComplete="off"
+                />
+                {tempSearch && <button type="button" onClick={() => setTempSearch("")} aria-label="Limpar pesquisa">×</button>}
+              </label>
+              <button type="button" className={`btn btn--outline documents-filter-toggle ${showFilters ? "is-active" : ""}`} onClick={() => setShowFilters(current => !current)} aria-expanded={showFilters}>
+                Filtros
+                {(selectedTags.length + (selectedAuthor !== "all" ? 1 : 0) + (selectedFolderId !== "all" ? 1 : 0)) > 0 && <span>{selectedTags.length + (selectedAuthor !== "all" ? 1 : 0) + (selectedFolderId !== "all" ? 1 : 0)}</span>}
+              </button>
             </div>
-            <div className="doc-areas-strip">
-              <button type="button" className={`doc-area-card ${selectedFolderId === "all" ? "is-active" : ""}`} onClick={() => setSelectedFolderId("all")}>
-                <span className="doc-area-card__icon">🗂️</span><span><strong>Todos</strong><small>{docs.length} documento{docs.length !== 1 ? "s" : ""}</small></span>
-              </button>
+
+            {showFilters && (
+              <div className="documents-filter-panel">
+                <label><span>Área</span><select value={selectedFolderId} onChange={event => setSelectedFolderId(event.target.value)}><option value="all">Todas as áreas</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}<option value="unfiled">Sem área</option></select></label>
+                <label><span>Tags</span><select value="" onChange={event => { if (event.target.value && !selectedTags.includes(event.target.value)) setSelectedTags(current => [...current, event.target.value]); }}><option value="">Adicionar tag...</option>{usedTags.filter(tag => !selectedTags.includes(tag)).map(tag => <option key={tag} value={tag}>{tag}</option>)}</select></label>
+                {authors.length > 1 && <label><span>Autor</span><select value={selectedAuthor} onChange={event => setSelectedAuthor(event.target.value)}><option value="all">Todos os autores</option>{authors.map(author => <option key={author} value={author}>{author}</option>)}</select></label>}
+                <label><span>Ordenar por</span><select value={`${sortBy}:${sortDir}`} onChange={event => { const [field, direction] = event.target.value.split(":"); setSortBy(field); setSortDir(direction); }}><option value="updated:desc">Atualização mais recente</option><option value="updated:asc">Atualização mais antiga</option><option value="created:desc">Criação mais recente</option><option value="created:asc">Criação mais antiga</option><option value="name:asc">Título de A a Z</option><option value="name:desc">Título de Z a A</option></select></label>
+              </div>
+            )}
+
+            {(searchQuery || selectedTags.length > 0 || selectedStatus !== "all" || selectedAuthor !== "all" || selectedFolderId !== "all") && (
+              <div className="documents-active-filters" aria-label="Filtros ativos">
+                {searchQuery && <button type="button" onClick={() => setTempSearch("")}>Busca: “{searchQuery}” <span>×</span></button>}
+                {selectedFolderId !== "all" && <button type="button" onClick={() => setSelectedFolderId("all")}>{selectedFolderId === "unfiled" ? "Sem área" : folders.find(folder => String(folder.id) === String(selectedFolderId))?.name} <span>×</span></button>}
+                {selectedStatus !== "all" && <button type="button" onClick={() => setSelectedStatus("all")}>Status: {selectedStatus === "published" ? "Publicado" : selectedStatus === "archived" ? "Arquivado" : "Rascunho"} <span>×</span></button>}
+                {selectedAuthor !== "all" && <button type="button" onClick={() => setSelectedAuthor("all")}>Autor: {selectedAuthor} <span>×</span></button>}
+                {selectedTags.map(tag => <button type="button" key={tag} onClick={() => toggleTag(tag)}>Tag: {tag} <span>×</span></button>)}
+                <button type="button" className="documents-active-filters__clear" onClick={clearFilters}>Limpar filtros</button>
+              </div>
+            )}
+          </section>
+
+          <nav className="documents-status-nav" aria-label="Filtrar por status">
+            {[
+              { id: "all", label: "Todos", count: docs.length },
+              { id: "published", label: "Publicados", count: publishedCount },
+              { id: "draft", label: "Rascunhos", count: draftCount },
+              { id: "archived", label: "Arquivados", count: archivedCount },
+            ].map(item => <button type="button" key={item.id} className={selectedStatus === item.id ? "is-active" : ""} onClick={() => setSelectedStatus(item.id)} aria-current={selectedStatus === item.id ? "page" : undefined}>{item.label}<span>{item.count}</span></button>)}
+          </nav>
+
+          <section className="documents-areas" aria-labelledby="documents-areas-title">
+            <div className="documents-section-heading">
+              <div><h2 id="documents-areas-title">Áreas</h2><p>Organize e navegue pela base de conhecimento.</p></div>
+              {isAdmin && <button type="button" className="btn btn--ghost btn--sm" onClick={() => openFolderModal()}>+ Nova área</button>}
+            </div>
+            <div className="documents-area-strip">
+              <button type="button" className={selectedFolderId === "all" ? "is-active" : ""} onClick={() => setSelectedFolderId("all")}><span>▦</span><strong>Todas as áreas</strong><small>{docs.length}</small></button>
               {folders.map(folder => {
-                const count = docs.filter(item => String(item.folderId) === String(folder.id)).length;
-                return (
-                  <div key={folder.id} className={`doc-area-card doc-area-card--managed ${selectedFolderId === folder.id ? "is-active" : ""}`}>
-                    <button type="button" className="doc-area-card__main" onClick={() => setSelectedFolderId(folder.id)}>
-                      <span className="doc-area-card__icon">{folder.icon || "📁"}</span><span><strong>{folder.name}</strong><small>{count} documento{count !== 1 ? "s" : ""}</small></span>
-                    </button>
-                    {isAdmin && <div className="doc-area-card__actions"><button type="button" onClick={() => openFolderModal(folder)} title="Editar área">✎</button><button type="button" onClick={() => handleDeleteFolder(folder)} title="Excluir área">×</button></div>}
-                  </div>
-                );
+                const count = docs.filter(doc => String(doc.folderId) === String(folder.id)).length;
+                return <div className={`documents-area-item ${selectedFolderId === folder.id ? "is-active" : ""}`} key={folder.id}><button type="button" onClick={() => setSelectedFolderId(folder.id)}><span>{folder.icon || "📁"}</span><strong>{folder.name}</strong><small>{count}</small></button>{isAdmin && <div><button type="button" onClick={() => openFolderModal(folder)} aria-label={`Editar área ${folder.name}`}>✎</button><button type="button" onClick={() => handleDeleteFolder(folder)} aria-label={`Excluir área ${folder.name}`}>×</button></div>}</div>;
               })}
-              <button type="button" className={`doc-area-card ${selectedFolderId === "unfiled" ? "is-active" : ""}`} onClick={() => setSelectedFolderId("unfiled")}>
-                <span className="doc-area-card__icon">📄</span><span><strong>Sem área</strong><small>{docs.filter(item => !item.folderId).length} documento{docs.filter(item => !item.folderId).length !== 1 ? "s" : ""}</small></span>
-              </button>
+              <button type="button" className={selectedFolderId === "unfiled" ? "is-active" : ""} onClick={() => setSelectedFolderId("unfiled")}><span>⌑</span><strong>Sem área</strong><small>{docs.filter(doc => !doc.folderId).length}</small></button>
             </div>
           </section>
 
-          {!loading && docs.length > 0 && (
-            <section className="client-summary-grid" style={{ marginBottom: "24px" }}>
-              <div className="client-summary-card">
-                <span>Documentos Publicados</span>
-                <strong>{publishedCount}</strong>
+          <section className="documents-library" aria-labelledby="documents-library-title">
+            <div className="documents-library-toolbar">
+              <div><h2 id="documents-library-title">Documentos</h2><p>{loading ? "Carregando documentos..." : `${filteredDocs.length} ${filteredDocs.length === 1 ? "resultado" : "resultados"}`}</p></div>
+              <div className="documents-view-toggle" role="group" aria-label="Modo de visualização">
+                <button type="button" className={viewMode === "list" ? "is-active" : ""} onClick={() => setViewMode("list")} aria-pressed={viewMode === "list"} title="Lista"><span aria-hidden="true">☷</span><span>Lista</span></button>
+                <button type="button" className={viewMode === "grid" ? "is-active" : ""} onClick={() => setViewMode("grid")} aria-pressed={viewMode === "grid"} title="Grade"><span aria-hidden="true">▦</span><span>Grade</span></button>
               </div>
-              <div className="client-summary-card">
-                <span>Documentos em Rascunho</span>
-                <strong>{draftCount}</strong>
-              </div>
-              {tagData.length > 0 && (
-                <div className="client-summary-card" style={{ display: "flex", gap: "16px", alignItems: "center", minHeight: "92px", padding: "12px 18px" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>Tags Principais</span>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "6px" }}>
-                      {tagData.slice(0, 3).map(item => (
-                        <div key={item.name} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px" }}>
-                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: item.color, flexShrink: 0 }} />
-                          <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{item.value}</span>
-                          <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ width: "72px", height: "72px", flexShrink: 0 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={tagData} dataKey="value" nameKey="name" innerRadius={18} outerRadius={30} paddingAngle={2}>
-                          {tagData.map((entry, idx) => (
-                            <Cell key={idx} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value, name) => [`${value} doc${value > 1 ? "s" : ""}`, name]} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: '24px' }}>
-            <div className="doc-search-wrap" style={{ flex: 1, minWidth: '200px', maxWidth: '320px' }}>
-              <span className="si"><Icons.Search /></span>
-              <input 
-                className="doc-search" 
-                placeholder="Buscar por título, conteúdo ou tag..." 
-                value={tempSearch} 
-                onChange={e => setTempSearch(e.target.value)} 
-                onKeyDown={e => { if (e.key === 'Enter') setSearchQuery(tempSearch); }}
-              />
             </div>
-            
-            <button 
-              type="button" 
-              className="btn btn--primary btn--sm" 
-              onClick={() => setSearchQuery(tempSearch)}
-            >
-              Pesquisar
-            </button>
 
-            <button 
-              type="button" 
-              className={`btn ${showFilters ? 'btn--primary' : 'btn--outline'} btn--sm`} 
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              Filtros Avançados
-            </button>
-
-            {showFilters && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <div className="doc-controls" style={{ display: 'flex', gap: '8px' }}>
-                  <button 
-                    className={`sort-btn ${tempSortBy === "date" ? "sort-btn--active" : ""}`} 
-                    onClick={() => {
-                      setTempSortBy("date");
-                      setTempSortDir(prev => prev === "asc" ? "desc" : "asc");
-                    }}
-                  >
-                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                    Data {tempSortBy === "date" ? (tempSortDir === "desc" ? "↓" : "↑") : ""}
-                  </button>
-                  <button 
-                    className={`sort-btn ${tempSortBy === "name" ? "sort-btn--active" : ""}`} 
-                    onClick={() => {
-                      setTempSortBy("name");
-                      setTempSortDir(prev => prev === "asc" ? "desc" : "asc");
-                    }}
-                  >
-                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
-                    Nome {tempSortBy === "name" ? (tempSortDir === "asc" ? "A→Z" : "Z→A") : ""}
-                  </button>
-                </div>
-                <div className="view-toggle">
-                  <button className={`view-toggle__btn ${viewMode === "grid" ? "view-toggle__btn--active" : ""}`} onClick={() => setViewMode("grid")} title="Galeria">
-                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>
-                  </button>
-                  <button className={`view-toggle__btn ${viewMode === "list" ? "view-toggle__btn--active" : ""}`} onClick={() => setViewMode("list")} title="Lista">
-                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-                  </button>
-                </div>
-
-                <div className="tag-filter" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                  <span className="tag-filter__label" style={{ fontSize: '13px', fontWeight: 600 }}>Tags:</span>
-                  {usedTags.map(tag => (<span key={tag} className={`tag-chip tag-chip--interactive ${selectedTags.includes(tag) ? "tag-chip--active" : ""}`} style={{ background: selectedTags.includes(tag) ? getTagColor(tag) + "30" : getTagColor(tag) + "15", color: getTagColor(tag) }} onClick={() => toggleTag(tag)}>{tag}</span>))}
-                  {isAdmin && (
-                    <>
-                      <span style={{ color: "var(--border)", margin: "0 4px" }}>|</span>
-                      {!showTagCreator ? (
-                        <button className="sort-btn" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => setShowTagCreator(true)}>+ Nova Tag</button>
-                      ) : (
-                        <div className="new-tag-form" style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                          <input type="text" value={newTagName} onChange={e => setNewTagName(e.target.value)} placeholder="Nome..." style={{ padding: '4px 8px', fontSize: '12px' }} onKeyDown={e => { if (e.key === "Enter" && newTagName.trim()) { handleCreateTag({ name: newTagName.trim(), color: newTagColor }); } }} />
-                          <input type="color" value={newTagColor} onChange={e => setNewTagColor(e.target.value)} style={{ width: '28px', height: '28px', padding: 0 }} />
-                          <button className="btn btn--primary btn--sm" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={() => { if (newTagName.trim()) handleCreateTag({ name: newTagName.trim(), color: newTagColor }); }}>Criar</button>
-                          <button className="btn btn--outline btn--sm" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={() => { setShowTagCreator(false); setNewTagName(""); }}>✕</button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <button 
-                  type="button" 
-                  className="btn btn--outline btn--sm text-danger" 
-                  onClick={() => {
-                    setTempSearch("");
-                    setSearchQuery("");
-                    setSelectedTags([]);
-                    setTempSortBy("date");
-                    setSortBy("date");
-                    setTempSortDir("desc");
-                    setSortDir("desc");
-                  }}
-                  style={{ gap: '6px', color: 'var(--danger)', borderColor: 'rgba(233,46,48,0.15)' }}
-                >
-                  Limpar Filtros
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn--primary btn--sm" 
-                  onClick={() => {
-                    setSearchQuery(tempSearch);
-                    setSortBy(tempSortBy);
-                    setSortDir(tempSortDir);
-                  }}
-                >
-                  Filtrar
-                </button>
-              </div>
-            )}
-          </div>
-
-          {loading ? <LoadingSpinner /> : (
-            filteredDocs.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 60, color: "var(--text-muted)" }}>
-                <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ marginBottom: 16, opacity: 0.4 }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Nenhum documento encontrado</div>
-                <div style={{ fontSize: 14 }}>Tente ajustar seus filtros ou crie um novo documento.</div>
+            {loading ? <DocumentListSkeleton viewMode={viewMode} /> : filteredDocs.length === 0 ? (
+              <div className="documents-empty">
+                <span aria-hidden="true">⌕</span>
+                <h3>{docs.length === 0 ? "Sua central de conhecimento começa aqui" : "Nenhum documento encontrado"}</h3>
+                <p>{docs.length === 0 ? "Crie o primeiro documento para registrar processos e conhecimento técnico." : "Ajuste a busca ou remova os filtros aplicados."}</p>
+                {docs.length === 0 && isAdmin ? <button className="btn btn--primary" onClick={() => { setShowCreateModal(true); setCreateStep("choose"); }}>+ Criar primeiro documento</button> : <button className="btn btn--outline" onClick={clearFilters}>Limpar filtros</button>}
               </div>
             ) : (
-              <div className={`doc-gallery ${viewMode === "list" ? "doc-gallery--list" : ""}`}>
-                {filteredDocs.map(doc => (
-                  <div key={doc.id} className="doc-card" onClick={() => { setEditorStartsEditing(false); setEditingDoc(doc); }}>
-                    <div className="doc-card__header">
-                      <div className={`doc-card__icon ${doc.type === "pdf" ? "doc-card__icon--pdf" : doc.type === "docx" ? "doc-card__icon--docx" : ""}`}>
-                        <span className="doc-card__emoji">{doc.icon || "📄"}</span>
+              <div className={`documents-results documents-results--${viewMode}`}>
+                {filteredDocs.map(doc => {
+                  const folder = folders.find(item => String(item.id) === String(doc.folderId));
+                  const canEdit = isAdmin || doc.authorUserId === session?.user?.id;
+                  const openDoc = () => { setEditorStartsEditing(false); setEditingDoc(doc); };
+                  return (
+                    <article key={doc.id} className="documents-item" tabIndex={0} onClick={openDoc} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openDoc(); } }}>
+                      <div className={`documents-item__icon documents-item__icon--${doc.type || "document"}`} aria-hidden="true">{doc.icon || "📄"}</div>
+                      <div className="documents-item__main">
+                        <div className="documents-item__title-row"><h3>{doc.title}</h3><span className={`documents-status documents-status--${doc.status}`}>{doc.status === "published" ? "Publicado" : doc.status === "archived" ? "Arquivado" : "Rascunho"}</span></div>
+                        <p className="documents-item__preview">{getDocumentPreview(doc.content) || "Documento técnico sem resumo disponível."}</p>
+                        <div className="documents-item__tags">{doc.tags?.slice(0, 3).map(tag => <span key={tag} style={{ "--tag-color": getTagColor(tag) }}>{tag}</span>)}{doc.tags?.length > 3 && <span>+{doc.tags.length - 3}</span>}</div>
                       </div>
-                      <div className="doc-card__title-wrap">
-                        <div className="doc-card__title">{doc.title}</div>
-                        <div className="doc-card__meta"><span>{doc.author}</span><span>·</span><span>{formatDocDate(doc.updatedAt)}</span>{doc.folderId && <><span>·</span><span>{folders.find(folder => folder.id === doc.folderId)?.name}</span></>}</div>
-                      </div>
-                    </div>
-                    <div className="doc-card__preview">{stripHtml(doc.content)}</div>
-                    <div className="doc-card__footer">
-                      <div className="doc-card__tags">
-                        {doc.tags?.slice(0, 3).map(tag => (<span key={tag} className="tag-chip tag-chip--sm" style={{ background: getTagColor(tag) + "15", color: getTagColor(tag) }}>{tag}</span>))}
-                        {doc.tags?.length > 3 && (<span className="tag-chip tag-chip--sm" style={{ background: "var(--bg-secondary)", color: "var(--text-muted)" }}>+{doc.tags.length - 3}</span>)}
-                        
-                        {(isAdmin || doc.authorUserId === session?.user?.id) && (
-                          <div style={{ position: "relative", display: "inline-block", marginLeft: "4px" }} onClick={e => e.stopPropagation()}>
-                            <select 
-                              title="Adicionar Tag"
-                              style={{
-                                appearance: "none", width: 22, height: 22, borderRadius: "50%", background: "var(--bg-secondary)", color: "var(--text-muted)", border: "1px dashed var(--border)", cursor: "pointer", textAlign: "center", fontSize: "14px", fontWeight: "bold", padding: 0
-                              }}
-                              onChange={async (e) => {
-                                if (!e.target.value) return;
-                                const newTag = e.target.value;
-                                const currentTags = doc.tags || [];
-                                if (!currentTags.includes(newTag)) {
-                                  const updatedTags = [...currentTags, newTag];
-                                  try {
-                                    await api.updateDoc(doc.id, { tags: updatedTags });
-                                    setDocs(prev => prev.map(d => d.id === doc.id ? { ...d, tags: updatedTags } : d));
-                                  } catch(err) { console.error(err); }
-                                }
-                                e.target.value = "";
-                              }}
-                            >
-                              <option value="">+</option>
-                              {tags.filter(t => !(doc.tags || []).includes(t.name)).map(t => (
-                                <option key={t.id || t.name} value={t.name}>{t.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <div className="doc-card__status">{statusBadge(doc.status)}</div>
-                        {(isAdmin || doc.authorUserId === session?.user?.id) && (
-                          <button
-                            className="btn btn--outline btn--sm"
-                            style={{ padding: "4px 10px", fontSize: "12px" }}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setEditorStartsEditing(true);
-                              setEditingDoc(doc);
-                            }}
-                          >
-                            Editar
-                          </button>
-                        )}
-                        {isAdmin && <button className="doc-card__delete" title="Excluir documento" onClick={(event) => { event.stopPropagation(); if (confirm(`Tem certeza que deseja excluir "${doc.title}"?`)) handleDeleteDoc(doc.id); }}>×</button>}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                      <div className="documents-item__meta"><span>{folder?.name || "Sem área"}</span><span>{doc.author || "Sistema"}</span><time dateTime={doc.updatedAt}>Atualizado {formatDocDate(doc.updatedAt)}</time></div>
+                      <DocumentActionMenu doc={doc} folders={folders} canEdit={canEdit} isAdmin={isAdmin} onOpen={openDoc} onEdit={() => { setEditorStartsEditing(true); setEditingDoc(doc); }} onDuplicate={() => handleDuplicateDoc(doc)} onMove={folderId => handleQuickUpdate(doc, { folderId }, "Documento movido com sucesso.")} onManageTags={() => { setEditorStartsEditing(true); setEditingDoc(doc); }} onTogglePublish={() => handleQuickUpdate(doc, { status: doc.status === "published" ? "draft" : "published" }, doc.status === "published" ? "Documento voltou para rascunho." : "Documento publicado com sucesso.")} onDelete={() => { if (confirm(`Tem certeza que deseja excluir “${doc.title}”? Esta ação não pode ser desfeita.`)) handleDeleteDoc(doc.id); }} />
+                    </article>
+                  );
+                })}
               </div>
-            )
-          )}
-        </>
+            )}
+          </section>
+        </main>
       )}
 
       {activeTab === "tags" && (
@@ -1511,6 +1450,8 @@ export default function PageDocuments({ session }) {
           </table>
         </div>
       )}
+
+      {feedback && <div className={`documents-feedback documents-feedback--${feedback.type}`} role="status"><span>{feedback.type === "success" ? "✓" : "!"}</span>{feedback.message}<button type="button" onClick={() => setFeedback(null)} aria-label="Fechar notificação">×</button></div>}
 
       {showFolderModal && (
         <div className="doc-overlay" onClick={() => setShowFolderModal(false)}>
